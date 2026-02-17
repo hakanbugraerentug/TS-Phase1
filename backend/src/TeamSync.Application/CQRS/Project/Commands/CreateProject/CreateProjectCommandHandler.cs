@@ -1,4 +1,5 @@
 using TeamSync.Application.DTOs;
+using TeamSync.Application.Mappers;
 using TeamSync.Domain.Interfaces;
 
 namespace TeamSync.Application.CQRS.Project.Commands.CreateProject;
@@ -23,18 +24,6 @@ public class CreateProjectCommandHandler
         };
 
         var createdProject = await _projectRepository.CreateAsync(project);
-        return MapToDto(createdProject);
-    }
-
-    private static ProjectDto MapToDto(Domain.Entities.Project project)
-    {
-        return new ProjectDto
-        {
-            Id = project.Id,
-            Title = project.Title,
-            Description = project.Description,
-            Owner = project.Owner,
-            Members = project.Members
-        };
+        return ProjectMapper.ToDto(createdProject);
     }
 }

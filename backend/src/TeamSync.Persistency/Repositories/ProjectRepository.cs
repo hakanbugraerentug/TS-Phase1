@@ -40,7 +40,13 @@ public class ProjectRepository : IProjectRepository
     public async Task<Project> UpdateAsync(Project project)
     {
         var filter = Builders<Project>.Filter.Eq(p => p.Id, project.Id);
-        await _collection.ReplaceOneAsync(filter, project);
+        var result = await _collection.ReplaceOneAsync(filter, project);
+        
+        if (result.ModifiedCount == 0)
+        {
+            throw new InvalidOperationException($"Project with ID {project.Id} not found or not modified.");
+        }
+        
         return project;
     }
 

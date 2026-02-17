@@ -1,4 +1,5 @@
 using TeamSync.Application.DTOs;
+using TeamSync.Application.Mappers;
 using TeamSync.Domain.Interfaces;
 
 namespace TeamSync.Application.CQRS.Project.Commands.UpdateProject;
@@ -26,18 +27,6 @@ public class UpdateProjectCommandHandler
         existingProject.Members = command.Request.Members;
 
         var updatedProject = await _projectRepository.UpdateAsync(existingProject);
-        return MapToDto(updatedProject);
-    }
-
-    private static ProjectDto MapToDto(Domain.Entities.Project project)
-    {
-        return new ProjectDto
-        {
-            Id = project.Id,
-            Title = project.Title,
-            Description = project.Description,
-            Owner = project.Owner,
-            Members = project.Members
-        };
+        return ProjectMapper.ToDto(updatedProject);
     }
 }
