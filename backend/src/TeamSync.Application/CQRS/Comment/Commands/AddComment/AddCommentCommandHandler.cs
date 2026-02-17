@@ -19,8 +19,7 @@ public class AddCommentCommandHandler
         {
             Username = command.Request.Username,
             Content = command.Request.Content,
-            ProjectId = command.Request.ProjectId,
-            Date = DateTime.UtcNow
+            ProjectId = command.Request.ProjectId
         };
 
         var createdComment = await _commentRepository.CreateAsync(comment);

@@ -31,7 +31,7 @@ public class CommentsController : ControllerBase
     {
         var command = new AddCommentCommand { Request = request };
         var result = await _addCommentHandler.Handle(command);
-        return CreatedAtAction(nameof(GetCommentsByProject), new { projectId = result.ProjectId }, result);
+        return StatusCode(201, result);
     }
 
     [HttpGet("by-date")]
