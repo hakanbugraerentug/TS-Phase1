@@ -11,7 +11,7 @@ public class ProjectRepository : IProjectRepository
 
     public ProjectRepository(MongoDbContext context)
     {
-        _collection = context.Database.GetCollection<Project>("projects");
+        _collection = context.Database.GetCollection<Project>(Project.CollectionName);
     }
 
     public async Task<List<Project>> GetAllAsync()
@@ -42,9 +42,9 @@ public class ProjectRepository : IProjectRepository
         var filter = Builders<Project>.Filter.Eq(p => p.Id, project.Id);
         var result = await _collection.ReplaceOneAsync(filter, project);
         
-        if (result.ModifiedCount == 0)
+        if (result.MatchedCount == 0)
         {
-            throw new InvalidOperationException($"Project with ID {project.Id} not found or not modified.");
+            throw new InvalidOperationException($"Project with ID {project.Id} not found.");
         }
         
         return project;

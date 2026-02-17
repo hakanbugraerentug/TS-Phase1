@@ -5,6 +5,8 @@ namespace TeamSync.Domain.Entities;
 
 public class Project
 {
+    public const string CollectionName = "projects";
+
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
     public string Id { get; set; } = string.Empty;
