@@ -9,6 +9,9 @@ using TeamSync.Application.CQRS.Project.Commands.DeleteProject;
 using TeamSync.Application.CQRS.Project.Queries.GetAllProjects;
 using TeamSync.Application.CQRS.Project.Queries.GetProjectById;
 using TeamSync.Application.CQRS.Project.Queries.GetProjectsByOwner;
+using TeamSync.Application.CQRS.Comment.Commands.AddComment;
+using TeamSync.Application.CQRS.Comment.Queries.GetCommentsByDate;
+using TeamSync.Application.CQRS.Comment.Queries.GetCommentsByProject;
 using TeamSync.Domain.Interfaces;
 using TeamSync.Persistency.Context;
 using TeamSync.Persistency.Repositories;
@@ -28,6 +31,7 @@ builder.Services.AddScoped<ILdapService, LdapService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
+builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 
 // Register services - Application Layer
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -39,6 +43,11 @@ builder.Services.AddScoped<DeleteProjectCommandHandler>();
 builder.Services.AddScoped<GetAllProjectsQueryHandler>();
 builder.Services.AddScoped<GetProjectByIdQueryHandler>();
 builder.Services.AddScoped<GetProjectsByOwnerQueryHandler>();
+
+// Register CQRS Comment Handlers
+builder.Services.AddScoped<AddCommentCommandHandler>();
+builder.Services.AddScoped<GetCommentsByDateQueryHandler>();
+builder.Services.AddScoped<GetCommentsByProjectQueryHandler>();
 
 // Add JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
