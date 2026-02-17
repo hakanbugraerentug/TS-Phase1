@@ -1,6 +1,14 @@
-@TeamSync.API_HostAddress = http://localhost:5111
+@TeamSync.API_HostAddress = http://localhost:8000
 
-GET {{TeamSync.API_HostAddress}}/weatherforecast/
+### Login with test credentials
+POST {{TeamSync.API_HostAddress}}/auth/login
+Content-Type: application/json
 Accept: application/json
 
+{
+  "username": "testuser",
+  "password": "testpassword"
+}
+
 ###
+

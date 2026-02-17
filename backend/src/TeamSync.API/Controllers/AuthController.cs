@@ -18,9 +18,9 @@ public class AuthController : ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
+        if (!ModelState.IsValid)
         {
-            return BadRequest(new { message = "Username and password are required" });
+            return BadRequest(ModelState);
         }
 
         var response = await _authService.LoginAsync(request);

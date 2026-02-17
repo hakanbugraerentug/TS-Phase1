@@ -45,6 +45,10 @@ Update `appsettings.json` in the TeamSync.API project:
 
 ```json
 {
+  "AllowedOrigins": [
+    "http://localhost:5173",
+    "http://localhost:3000"
+  ],
   "JwtSettings": {
     "SecretKey": "your-secret-key-min-32-chars",
     "Issuer": "TeamSync.API",
@@ -63,6 +67,16 @@ Update `appsettings.json` in the TeamSync.API project:
   }
 }
 ```
+
+### Security Best Practices
+
+⚠️ **IMPORTANT**: The JWT secret key in `appsettings.json` is for development only. 
+
+**For production:**
+- Store sensitive configuration in environment variables or Azure Key Vault
+- Use .NET User Secrets for local development: `dotnet user-secrets set "JwtSettings:SecretKey" "your-production-key"`
+- Never commit production secrets to source control
+- Restrict CORS origins to specific domains
 
 ## Building the Solution
 
@@ -165,6 +179,7 @@ backend/
 
 ## Notes
 
-- The API uses CORS with `AllowAnyOrigin` for development. In production, configure specific origins.
+- CORS is configured to allow specific origins from the `AllowedOrigins` configuration. Update this in production to match your frontend domain.
 - JWT tokens are valid for 480 minutes (8 hours) by default.
 - MongoDB infrastructure is prepared but not actively used yet. The `IUserRepository` has placeholder implementations.
+- LDAP errors are logged for debugging. Check application logs if authentication fails.

@@ -1,5 +1,6 @@
 using System.DirectoryServices.Protocols;
 using System.Net;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TeamSync.Domain.Entities;
 using TeamSync.Domain.Interfaces;
@@ -10,10 +11,12 @@ namespace TeamSync.Persistency.Services;
 public class LdapService : ILdapService
 {
     private readonly LdapSettings _settings;
+    private readonly ILogger<LdapService> _logger;
 
-    public LdapService(IOptions<LdapSettings> settings)
+    public LdapService(IOptions<LdapSettings> settings, ILogger<LdapService> logger)
     {
         _settings = settings.Value;
+        _logger = logger;
     }
 
     public async Task<User?> AuthenticateAsync(string username, string password)
@@ -31,6 +34,8 @@ public class LdapService : ILdapService
 
                 // Attempt to bind - this authenticates the user
                 connection.Bind();
+
+                _logger.LogInformation("LDAP authentication successful for user: {Username}", username);
 
                 // If successful, search for user details
                 var searchRequest = new SearchRequest(
@@ -62,16 +67,17 @@ public class LdapService : ILdapService
                     };
                 }
 
+                _logger.LogWarning("LDAP user not found in directory: {Username}", username);
                 return null;
             }
-            catch (LdapException)
+            catch (LdapException ex)
             {
-                // Authentication failed
+                _logger.LogWarning("LDAP authentication failed for user {Username}: {Error}", username, ex.Message);
                 return null;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Other errors (network, etc.)
+                _logger.LogError(ex, "Unexpected error during LDAP authentication for user {Username}", username);
                 return null;
             }
         });
