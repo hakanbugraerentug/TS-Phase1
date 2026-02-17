@@ -1,6 +1,7 @@
 using MongoDB.Driver;
 using Microsoft.Extensions.Options;
 using TeamSync.Persistency.Settings;
+using TeamSync.Domain.Entities;
 
 namespace TeamSync.Persistency.Context;
 
@@ -15,4 +16,5 @@ public class MongoDbContext
     }
 
     public IMongoDatabase Database => _database;
+    public IMongoCollection<Project> Projects => _database.GetCollection<Project>("projects");
 }
