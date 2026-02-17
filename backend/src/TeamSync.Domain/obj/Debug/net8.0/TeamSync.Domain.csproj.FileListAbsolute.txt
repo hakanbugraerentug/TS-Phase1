@@ -1,0 +1,12 @@
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/bin/Debug/net8.0/TeamSync.Domain.deps.json
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/bin/Debug/net8.0/TeamSync.Domain.dll
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/bin/Debug/net8.0/TeamSync.Domain.pdb
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/obj/Debug/net8.0/TeamSync.Domain.GeneratedMSBuildEditorConfig.editorconfig
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/obj/Debug/net8.0/TeamSync.Domain.AssemblyInfoInputs.cache
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/obj/Debug/net8.0/TeamSync.Domain.AssemblyInfo.cs
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/obj/Debug/net8.0/TeamSync.Domain.csproj.CoreCompileInputs.cache
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/obj/Debug/net8.0/TeamSync.Domain.sourcelink.json
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/obj/Debug/net8.0/TeamSync.Domain.dll
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/obj/Debug/net8.0/refint/TeamSync.Domain.dll
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/obj/Debug/net8.0/TeamSync.Domain.pdb
+/home/runner/work/TS-Phase1/TS-Phase1/backend/src/TeamSync.Domain/obj/Debug/net8.0/ref/TeamSync.Domain.dll
