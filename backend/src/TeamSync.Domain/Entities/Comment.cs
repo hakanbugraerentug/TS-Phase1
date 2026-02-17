@@ -18,7 +18,7 @@ public class Comment
     public string Content { get; set; } = string.Empty;
 
     [BsonElement("date")]
-    public DateTime Date { get; set; } = DateTime.UtcNow;
+    public DateTime Date { get; set; }
 
     [BsonElement("project_id")]
     [BsonRepresentation(BsonType.ObjectId)]
