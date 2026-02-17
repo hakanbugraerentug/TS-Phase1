@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TeamSync.API/TeamSync.API.csproj" />
+    <Project Path="src/TeamSync.Application/TeamSync.Application.csproj" />
+    <Project Path="src/TeamSync.Domain/TeamSync.Domain.csproj" />
+    <Project Path="src/TeamSync.Persistency/TeamSync.Persistency.csproj" />
+  </Folder>
+</Solution>
