@@ -3,6 +3,12 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using TeamSync.Application.Interfaces;
 using TeamSync.Application.Services;
+using TeamSync.Application.CQRS.Project.Commands.CreateProject;
+using TeamSync.Application.CQRS.Project.Commands.UpdateProject;
+using TeamSync.Application.CQRS.Project.Commands.DeleteProject;
+using TeamSync.Application.CQRS.Project.Queries.GetAllProjects;
+using TeamSync.Application.CQRS.Project.Queries.GetProjectById;
+using TeamSync.Application.CQRS.Project.Queries.GetProjectsByOwner;
 using TeamSync.Domain.Interfaces;
 using TeamSync.Persistency.Context;
 using TeamSync.Persistency.Repositories;
@@ -21,9 +27,18 @@ builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<ILdapService, LdapService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
 
 // Register services - Application Layer
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Register CQRS Handlers
+builder.Services.AddScoped<CreateProjectCommandHandler>();
+builder.Services.AddScoped<UpdateProjectCommandHandler>();
+builder.Services.AddScoped<DeleteProjectCommandHandler>();
+builder.Services.AddScoped<GetAllProjectsQueryHandler>();
+builder.Services.AddScoped<GetProjectByIdQueryHandler>();
+builder.Services.AddScoped<GetProjectsByOwnerQueryHandler>();
 
 // Add JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
