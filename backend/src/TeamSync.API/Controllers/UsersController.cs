@@ -32,4 +32,18 @@ public class UsersController : ControllerBase
 
         return File(photo, "image/png");
     }
+
+    /// <summary>
+    /// Kullanıcının organizasyon şeması verilerini döndürür.
+    /// Manager zinciri recursive olarak çekilir (max 5 seviye).
+    /// Siblings: aynı manager'a sahip diğer kullanıcılar.
+    /// </summary>
+    [HttpGet("{username}/org-chart")]
+    public async Task<IActionResult> GetOrgChart(string username)
+    {
+        var result = await _userRepository.GetOrgChartAsync(username);
+        if (result == null)
+            return NotFound(new { message = "Org chart not found" });
+        return Ok(result);
+    }
 }

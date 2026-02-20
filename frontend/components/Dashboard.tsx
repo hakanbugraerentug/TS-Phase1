@@ -115,7 +115,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           ) : activeTab === 'Ekipler' ? (
             <Teams user={user} />
           ) : activeTab === 'Sema' ? (
-            <OrgChart />
+            <OrgChart user={user} />
           ) : activeTab === 'ProjeDetay' ? (
             selectedProjectId ? <ProjectDetail projectId={selectedProjectId} projectTitle={selectedProjectTitle} onBack={handleBackToProjects} user={user} /> : null
           ) : null}
