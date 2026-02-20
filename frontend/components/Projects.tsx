@@ -1,35 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserRole } from '../App';
+import { User } from '../App';
 
 interface Project {
+  id: string;
   title: string;
   description: string;
   owner: string;
-  team_title: string;
-  image: string;
-  status: string;
-  accountables: Record<string, string>;
-  pipeline: boolean;
-  outsource: boolean;
-  start_date: string;
-  expected_end_date: string;
-  summaries: string[];
-  units: string[];
-  accountables_count: number;
-  summaries_count: number;
-  units_count: number;
-}
-
-interface ProjectsResponse {
-  projects: Project[];
-  count: number;
+  members: string[];
+  image?: string;
 }
 
 interface ProjectsProps {
   onNavigateToReports: () => void;
   onSelectProject: (id: string, title: string) => void;
-  userRole: UserRole;
+  user: User;
 }
 
 // Görsel havuzu
@@ -41,48 +26,10 @@ const IMAGE_POOL = [
   "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?q=80&w=800&auto=format&fit=crop"
 ];
 
-const MOCK_PROJECTS: Project[] = [
-  {
-    title: "Mobil Şube UX Revizyonu",
-    description: "Yeni nesil mobil şube tasarımı ve kullanıcı deneyimi iyileştirme çalışmaları. Kullanıcı akışları ve arayüz modernizasyonu.",
-    owner: "hakan",
-    team_title: "Yazılım Geliştirme",
-    image: IMAGE_POOL[0],
-    status: "Devam Ediyor",
-    accountables: { "1": "Hakan Buğra" },
-    pipeline: true,
-    outsource: false,
-    start_date: "2024-01-15",
-    expected_end_date: "2024-12-30",
-    summaries: [],
-    units: ["Yazılım", "UX Tasarım"],
-    accountables_count: 1,
-    summaries_count: 0,
-    units_count: 2
-  },
-  {
-    title: "Yapay Zeka Destekli Kredi Skorlama",
-    description: "Mevcut skorlama modellerinin Gemini 1.5 Pro ve yerel dil modelleri ile modernize edilmesi projesi.",
-    owner: "admin",
-    team_title: "Veri Bilimi",
-    image: IMAGE_POOL[1],
-    status: "Planlama",
-    accountables: { "1": "Merve Dağ", "2": "Ali Ak" },
-    pipeline: false,
-    outsource: true,
-    start_date: "2024-05-01",
-    expected_end_date: "2025-06-01",
-    summaries: [],
-    units: ["Sistem", "Donanım"],
-    accountables_count: 2,
-    summaries_count: 0,
-    units_count: 2
-  }
-];
-
-export const Projects: React.FC<ProjectsProps> = ({ onSelectProject }) => {
+export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -90,26 +37,32 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject }) => {
   const [newDescription, setNewDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  const apiUrl = (process.env.API_URL || 'http://0.0.0.0:8000').replace(/\/$/, '');
+  const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
   const fetchProjects = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${apiUrl}/projects/`, {
-        headers: { 'accept': 'application/json' }
+      setError(null);
+      const response = await fetch(`${apiUrl}/api/projects`, {
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${user.accessToken}`
+        }
       });
       if (response.ok) {
-        const data: ProjectsResponse = await response.json();
-        const projectsWithImages = (data.projects || MOCK_PROJECTS).map((p, idx) => ({
+        const data: Project[] = await response.json();
+        const projectsWithImages = (data || []).map((p, idx) => ({
           ...p,
-          image: p.image || IMAGE_POOL[idx % IMAGE_POOL.length]
+          image: IMAGE_POOL[idx % IMAGE_POOL.length]
         }));
         setProjects(projectsWithImages);
       } else {
-        setProjects(MOCK_PROJECTS);
+        setProjects([]);
+        setError('Projeler yüklenemedi.');
       }
     } catch (err) {
-      setProjects(MOCK_PROJECTS);
+      setProjects([]);
+      setError('Projeler yüklenemedi.');
     } finally {
       setIsLoading(false);
     }
@@ -117,41 +70,39 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject }) => {
 
   useEffect(() => {
     fetchProjects();
-  }, []);
+  }, [user.accessToken]);
 
-  const handleCreateProject = (e: React.FormEvent) => {
+  const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
     setIsCreating(true);
-    
-    // Simüle edilen kayıt işlemi
-    setTimeout(() => {
-      const newProj: Project = {
-        title: newTitle,
-        description: newDescription,
-        owner: "hakan",
-        team_title: "Yeni Birim",
-        image: IMAGE_POOL[Math.floor(Math.random() * IMAGE_POOL.length)],
-        status: "Yeni",
-        accountables: { "1": "Hakan Buğra" },
-        pipeline: false,
-        outsource: false,
-        start_date: new Date().toISOString().split('T')[0],
-        expected_end_date: "",
-        summaries: [],
-        units: ["Genel"],
-        accountables_count: 1,
-        summaries_count: 0,
-        units_count: 1
-      };
+    try {
+      const response = await fetch(`${apiUrl}/api/projects`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.accessToken}`
+        },
+        body: JSON.stringify({
+          title: newTitle,
+          description: newDescription,
+          owner: user.username,
+          members: [user.username]
+        })
+      });
 
-      setProjects([newProj, ...projects]);
+      if (response.ok) {
+        await fetchProjects();
+        setIsModalOpen(false);
+        setNewTitle('');
+        setNewDescription('');
+      }
+    } catch (err) {
+      console.error('Proje oluşturulamadı:', err);
+    } finally {
       setIsCreating(false);
-      setIsModalOpen(false);
-      setNewTitle('');
-      setNewDescription('');
-    }, 1000);
+    }
   };
 
   return (
@@ -241,12 +192,20 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject }) => {
            <div className="w-12 h-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mb-4"></div>
            <p className="text-slate-500 font-black text-[9px] uppercase tracking-widest">Veritabanı Sorgulanıyor...</p>
         </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-40 opacity-40">
+          <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">{error}</p>
+        </div>
+      ) : projects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-40 opacity-40">
+          <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Henüz proje bulunmuyor.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {projects.map((project, idx) => (
             <div 
-              key={project.title || idx} 
-              onClick={() => onSelectProject(project.title, project.title)}
+              key={project.id || idx} 
+              onClick={() => onSelectProject(project.id, project.title)}
               className="group bg-[#1e293b]/30 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-white/5 overflow-hidden hover:bg-[#1e293b]/50 transition-all duration-500 flex flex-col cursor-pointer hover:border-blue-500/30 hover:shadow-blue-500/10"
             >
               <div className="relative h-48 overflow-hidden">
@@ -259,13 +218,13 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject }) => {
                 
                 <div className="absolute top-4 left-4">
                   <div className="px-3 py-1 bg-blue-600/80 backdrop-blur-md border border-white/20 rounded-full shadow-lg">
-                    <span className="text-[8px] font-black text-white uppercase tracking-widest">{project.status}</span>
+                    <span className="text-[8px] font-black text-white uppercase tracking-widest">Aktif</span>
                   </div>
                 </div>
 
                 <div className="absolute bottom-4 left-4">
                   <span className="text-[9px] font-black text-white/80 uppercase tracking-widest bg-black/40 backdrop-blur-sm px-3 py-1 rounded-lg border border-white/10 italic">
-                    {project.team_title || 'Genel Proje'}
+                    Genel Proje
                   </span>
                 </div>
               </div>
@@ -278,16 +237,16 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject }) => {
                    <div>
                       <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest mb-2">Proje Sorumluları</p>
                       <div className="flex -space-x-2">
-                         {Object.values(project.accountables || {}).slice(0, 3).map((user, uIdx) => (
+                         {(project.members || [project.owner]).slice(0, 3).map((member, uIdx) => (
                            <div key={uIdx} className="w-8 h-8 rounded-xl bg-slate-800 border-2 border-[#1e293b] flex items-center justify-center text-[9px] font-black text-blue-400 shadow-xl group-hover:border-blue-500/20 transition-all">
-                             {user.charAt(0).toUpperCase()}
+                             {member.charAt(0).toUpperCase()}
                            </div>
                          ))}
                       </div>
                    </div>
                    <div className="text-right">
-                      <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest mb-1">Başlangıç Tarihi</p>
-                      <p className="text-[10px] font-black text-blue-100 italic">{project.start_date}</p>
+                      <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest mb-1">Sahip</p>
+                      <p className="text-[10px] font-black text-blue-100 italic">{project.owner}</p>
                    </div>
                 </div>
               </div>

@@ -9,6 +9,159 @@ The solution follows Clean Architecture with four main layers:
 ### 1. TeamSync.Domain (Domain Layer)
 - **No dependencies** on other projects
 - Contains:
+  - Entities: `User`, `Project`, `Team`, `Comment`
+  - Interfaces: `IUserRepository`, `IProjectRepository`, `ITeamRepository`, `ICommentRepository`, `ITokenService`
+
+### 2. TeamSync.Application (Application Layer)
+- **Depends on**: Domain
+- Contains:
+  - DTOs: `LoginRequest`, `LoginResponse`, `ProjectDto`, `TeamDto`, `CommentDto`
+  - Services: `AuthService`
+  - CQRS Handlers for Projects, Teams, and Comments
+
+### 3. TeamSync.Persistency (Infrastructure Layer)
+- **Depends on**: Domain, Application
+- Contains:
+  - Services: `TokenService`
+  - Repositories: `UserRepository`, `ProjectRepository`, `TeamRepository`, `CommentRepository`
+  - Context: `MongoDbContext`
+  - Settings: `JwtSettings`, `MongoDbSettings`
+
+### 4. TeamSync.API (Presentation Layer)
+- **Depends on**: Application, Persistency
+- Contains:
+  - Controllers: `AuthController`, `ProjectsController`, `TeamsController`, `CommentsController`
+  - Configuration: DI, CORS, JWT Authentication, Swagger
+
+## Prerequisites
+
+- .NET 8 SDK or later
+- MongoDB running on `localhost:27017`
+
+## Configuration
+
+Update `appsettings.json` in the TeamSync.API project (or set environment variables):
+
+```json
+{
+  "AllowedOrigins": ["http://localhost:5173", "http://localhost:3000"],
+  "JwtSettings": {
+    "SecretKey": "super-secret-key-for-teamsync-development-only-32chars",
+    "Issuer": "TeamSync.API",
+    "Audience": "TeamSync.Frontend",
+    "ExpirationInMinutes": 480
+  },
+  "MongoDbSettings": {
+    "ConnectionString": "mongodb://localhost:27017",
+    "DatabaseName": "TeamSyncDb"
+  }
+}
+```
+
+See `.env.example` for environment variable reference.
+
+## Building the Solution
+
+```bash
+cd backend
+dotnet build
+```
+
+## Running the API
+
+```bash
+cd backend/src/TeamSync.API
+dotnet run
+```
+
+The API will start on `http://localhost:8000` by default.
+
+## Demo Seed Data
+
+To seed a demo user, run the following with `mongosh`:
+
+```bash
+mongosh TeamSyncDb seed-demo.js
+```
+
+This inserts `hakanerentug` user with `FullName: "Hakan Erentuğ"`.
+
+## API Endpoints
+
+### Authentication
+
+#### POST /auth/login
+Authenticates a user. If user doesn't exist in MongoDB, auto-registers (demo mode).
+
+**Request:**
+```json
+{ "username": "hakanerentug", "password": "anypassword" }
+```
+
+**Response (200 OK):**
+```json
+{
+  "access_token": "jwt_token_here",
+  "user": { "full_name": "Hakan Erentuğ", "username": "hakanerentug", "employee_id": "" }
+}
+```
+
+### Projects
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | /api/projects | List all projects |
+| GET | /api/projects/{id} | Get project by ID |
+| POST | /api/projects | Create new project |
+| PUT | /api/projects/{id} | Update project |
+| DELETE | /api/projects/{id} | Delete project |
+
+### Teams
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | /api/teams | List all teams |
+| GET | /api/teams/my-teams | List teams for authenticated user |
+| GET | /api/teams/{id} | Get team by ID |
+| POST | /api/teams | Create new team |
+| PUT | /api/teams/{id}/leader | Set team leader |
+| POST | /api/teams/{id}/members | Add member to team |
+| DELETE | /api/teams/{id}/members/{username} | Remove member from team |
+
+### Comments
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | /api/comments | List all comments |
+| GET | /api/comments/project/{projectId} | Get comments by project |
+| POST | /api/comments | Add new comment |
+
+**Add Comment Request:**
+```json
+{ "projectId": "...", "text": "Comment text", "author": "User Name" }
+```
+
+## Swagger Documentation
+
+When running in Development mode, Swagger UI is available at:
+- `http://localhost:8000/swagger`
+
+## Notes
+
+- All endpoints (except `/auth/login`) require a JWT Bearer token.
+- JWT tokens are valid for 480 minutes (8 hours) by default.
+- CORS is configured to allow origins defined in `AllowedOrigins`.
+- Demo mode: any username with any password will be auto-registered on first login.
+- Admin bypass: `admin/admin` always works and returns an `Administrator` user.
+
+
+## Architecture
+
+The solution follows Clean Architecture with four main layers:
+
+### 1. TeamSync.Domain (Domain Layer)
+- **No dependencies** on other projects
+- Contains:
   - Entities: `User`
   - Interfaces: `ILdapService`, `ITokenService`, `IUserRepository`
 

@@ -4,6 +4,7 @@ import { Projects } from './Projects';
 import { ProjectDetail } from './ProjectDetail';
 import { WeeklySummary } from './WeeklySummary';
 import { OrgChart } from './OrgChart';
+import { Teams } from './Teams';
 import { User } from '../App';
 
 interface DashboardProps {
@@ -36,6 +37,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const menuItems = [
     { id: 'Projelerim', name: 'Projelerim', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /> },
     { id: 'Raporlar', name: 'Haftalık Raporlar', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 2v-6m-9 9h12" /> },
+    { id: 'Ekipler', name: 'Ekipler', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /> },
     { id: 'Sema', name: 'Organizasyon Şeması', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /> },
   ];
 
@@ -96,7 +98,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         <header className="h-20 bg-[#0f172a]/90 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-10 shadow-sm sticky top-0 z-10 flex-shrink-0">
           <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
-            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab}
+            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab}
           </span>
           <img 
             src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Yap%C4%B1_Kredi_logo.svg/1024px-Yap%C4%B1_Kredi_logo.svg.png" 
@@ -107,9 +109,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
 
         <main className="p-10 flex-grow relative overflow-y-auto bg-gradient-to-b from-[#0f172a] to-[#020617] scroll-smooth">
           {activeTab === 'Projelerim' ? (
-            <Projects userRole={user.role} onNavigateToReports={() => setActiveTab('Raporlar')} onSelectProject={handleProjectSelect} />
+            <Projects user={user} onNavigateToReports={() => setActiveTab('Raporlar')} onSelectProject={handleProjectSelect} />
           ) : activeTab === 'Raporlar' ? (
             <WeeklySummary user={user} />
+          ) : activeTab === 'Ekipler' ? (
+            <Teams user={user} />
           ) : activeTab === 'Sema' ? (
             <OrgChart />
           ) : activeTab === 'ProjeDetay' ? (

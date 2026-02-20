@@ -11,12 +11,14 @@ using TeamSync.Application.CQRS.Project.Queries.GetAllProjects;
 using TeamSync.Application.CQRS.Project.Queries.GetProjectById;
 using TeamSync.Application.CQRS.Project.Queries.GetProjectsByOwner;
 using TeamSync.Application.CQRS.Comment.Commands.AddComment;
+using TeamSync.Application.CQRS.Comment.Queries.GetAllComments;
 using TeamSync.Application.CQRS.Comment.Queries.GetCommentsByDate;
 using TeamSync.Application.CQRS.Comment.Queries.GetCommentsByProject;
 using TeamSync.Application.CQRS.Team.Commands.CreateTeam;
 using TeamSync.Application.CQRS.Team.Commands.SetLeader;
 using TeamSync.Application.CQRS.Team.Commands.AddMember;
 using TeamSync.Application.CQRS.Team.Commands.RemoveMember;
+using TeamSync.Application.CQRS.Team.Queries.GetAllTeams;
 using TeamSync.Application.CQRS.Team.Queries.GetTeamById;
 using TeamSync.Application.CQRS.Team.Queries.GetTeamsByProject;
 using TeamSync.Application.CQRS.Team.Queries.GetMyTeams;
@@ -55,6 +57,7 @@ builder.Services.AddScoped<GetProjectsByOwnerQueryHandler>();
 
 // Register CQRS Comment Handlers
 builder.Services.AddScoped<AddCommentCommandHandler>();
+builder.Services.AddScoped<GetAllCommentsQueryHandler>();
 builder.Services.AddScoped<GetCommentsByDateQueryHandler>();
 builder.Services.AddScoped<GetCommentsByProjectQueryHandler>();
 
@@ -63,6 +66,7 @@ builder.Services.AddScoped<CreateTeamCommandHandler>();
 builder.Services.AddScoped<SetLeaderCommandHandler>();
 builder.Services.AddScoped<AddMemberCommandHandler>();
 builder.Services.AddScoped<RemoveMemberCommandHandler>();
+builder.Services.AddScoped<GetAllTeamsQueryHandler>();
 builder.Services.AddScoped<GetTeamByIdQueryHandler>();
 builder.Services.AddScoped<GetTeamsByProjectQueryHandler>();
 builder.Services.AddScoped<GetMyTeamsQueryHandler>();

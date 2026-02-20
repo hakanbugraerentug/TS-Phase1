@@ -1,64 +1,64 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User } from '../App';
 
-interface ReportSource {
-  author: string;
-  avatar: string;
-  originalComment: string;
-  role: string;
-}
-
-interface ReportParagraph {
+interface CommentData {
   id: string;
-  text: string;
-  source: ReportSource;
+  username: string;
+  content: string;
+  date: string;
+  projectId: string;
 }
 
-const MOCK_WEEKS = [
-  "2024 - 20. Hafta (Güncel)",
-  "2024 - 19. Hafta",
-  "2024 - 18. Hafta",
-  "2024 - 17. Hafta"
-];
-
-const MOCK_REPORT_DATA: ReportParagraph[] = [
-  {
-    id: 'p1',
-    text: "Bu hafta içerisinde Mobil Şube UX revizyonu kapsamında ana sayfa akışları tamamlanmış olup, kullanıcı testleri için prototip aşamasına geçilmiştir. Tasarım ekiplerimiz navigasyon yapısını sadeleştirerek erişilebilirliği %20 oranında artırmayı hedeflemektedir.",
-    source: {
-      author: "Hakan Buğra Erentuğ",
-      avatar: "H",
-      role: "Proje Sahibi",
-      originalComment: "Analiz çalışmaları planlandığı gibi devam ediyor. Gelecek hafta test sürecine geçiyoruz. Navigasyon çok daha temiz oldu."
-    }
-  },
-  {
-    id: 'p2',
-    text: "Sistem altyapısı tarafında, API dökümantasyonunun tamamlanmasıyla birlikte frontend entegrasyonu başlamıştır. Güvenlik katmanları Yapı Kredi standartlarına uygun şekilde güncellenmiş ve load test hazırlıkları yapılmıştır.",
-    source: {
-      author: "Sistem Yöneticisi",
-      avatar: "S",
-      role: "Kıdemli Mühendis",
-      originalComment: "Altyapı hazırlandı, API dökümantasyonu paylaşıldı. Güvenlik testleri için environment hazır."
-    }
-  },
-  {
-    id: 'p3',
-    text: "Yapay zeka destekli kredi skorlama projesinde veri setleri temizlenmiş ve model eğitimi için GPU kümeleri tahsis edilmiştir. Gemini 2.5 entegrasyonu için gerekli middleware katmanı başarıyla devreye alınmıştır.",
-    source: {
-      author: "Merve Dağ",
-      avatar: "M",
-      role: "Veri Bilimci",
-      originalComment: "Veri temizliği bitti. GPU'ları bağladık. Middleware tarafında latency değerleri çok iyi."
-    }
-  }
-];
+function getWeekLabel(dateStr: string): string {
+  const date = new Date(dateStr);
+  const year = date.getFullYear();
+  const start = new Date(year, 0, 1);
+  const week = Math.ceil(((date.getTime() - start.getTime()) / 86400000 + start.getDay() + 1) / 7);
+  return `${year} - ${week}. Hafta`;
+}
 
 export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
-  const [selectedWeek, setSelectedWeek] = useState(MOCK_WEEKS[0]);
-  const [hoveredParagraph, setHoveredParagraph] = useState<string | null>(null);
+  const [comments, setComments] = useState<CommentData[]>([]);
+  const [weeks, setWeeks] = useState<string[]>([]);
+  const [selectedWeek, setSelectedWeek] = useState('');
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+  useEffect(() => {
+    const fetchComments = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch(`${apiUrl}/api/comments`, {
+          headers: {
+            'accept': 'application/json',
+            'Authorization': `Bearer ${user.accessToken}`
+          }
+        });
+        if (response.ok) {
+          const data: CommentData[] = await response.json();
+          setComments(data || []);
+
+          const uniqueWeeks = Array.from(new Set((data || []).map(c => getWeekLabel(c.date)))).reverse();
+          setWeeks(uniqueWeeks);
+          if (uniqueWeeks.length > 0) setSelectedWeek(uniqueWeeks[0]);
+        }
+      } catch (err) {
+        console.error('Yorumlar yüklenemedi:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchComments();
+  }, [user.accessToken]);
+
+  const filteredComments = selectedWeek
+    ? comments.filter(c => getWeekLabel(c.date) === selectedWeek)
+    : comments;
 
   return (
     <div className="max-w-[1600px] mx-auto animate-in fade-in duration-700">
@@ -76,7 +76,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
             onChange={(e) => setSelectedWeek(e.target.value)}
             className="bg-[#1e293b]/50 border border-white/10 text-white text-[11px] font-black uppercase tracking-widest px-6 py-3.5 rounded-2xl outline-none focus:border-blue-500/50 appearance-none cursor-pointer pr-12 shadow-xl"
           >
-            {MOCK_WEEKS.map(week => <option key={week} value={week}>{week}</option>)}
+            {weeks.map(week => <option key={week} value={week}>{week}</option>)}
           </select>
           <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400">
              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
@@ -96,47 +96,57 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
               </div>
             </div>
 
-            {MOCK_REPORT_DATA.map((paragraph) => (
-              <div 
-                key={paragraph.id}
-                onMouseEnter={() => setHoveredParagraph(paragraph.id)}
-                onMouseLeave={() => setHoveredParagraph(null)}
-                className={`relative p-6 rounded-3xl transition-all duration-500 cursor-default group ${
-                  hoveredParagraph === paragraph.id ? 'bg-white/5 shadow-2xl scale-[1.01] z-50' : 'hover:bg-white/[0.02]'
-                }`}
-              >
-                <p className="text-slate-300 text-lg font-medium italic leading-relaxed">
-                  {paragraph.text}
-                </p>
-
-                {/* Source Tooltip (Hover Kartı - Artık Altta) */}
-                {hoveredParagraph === paragraph.id && (
-                  <div className="absolute left-0 top-full mt-4 w-full max-w-lg animate-in fade-in slide-in-from-top-2 duration-300 z-[100]">
-                    <div className="bg-[#0f172a] border border-blue-500/30 rounded-[2rem] p-6 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.8)] backdrop-blur-3xl relative">
-                       {/* Arrow Up */}
-                       <div className="absolute -top-2 left-12 w-4 h-4 bg-[#0f172a] border-t border-l border-blue-500/30 rotate-45"></div>
-                       
-                       <div className="flex items-center gap-4 mb-4 border-b border-white/5 pb-4">
-                          <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-white text-xl shadow-lg border border-white/20">
-                            {paragraph.source.avatar}
-                          </div>
-                          <div>
-                            <p className="text-white font-black italic text-sm">{paragraph.source.author}</p>
-                            <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest">{paragraph.source.role}</p>
-                          </div>
-                       </div>
-                       <p className="text-slate-400 text-[11px] font-bold italic leading-relaxed">
-                         "{paragraph.source.originalComment}"
-                       </p>
-                       <div className="mt-4 flex items-center gap-2">
-                          <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
-                          <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest">Orijinal Kayıttan Türetildi</span>
-                       </div>
-                    </div>
-                  </div>
-                )}
+            {isLoading ? (
+              <div className="flex justify-center py-20">
+                <div className="w-10 h-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
               </div>
-            ))}
+            ) : filteredComments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 opacity-40">
+                <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Henüz rapor bulunmuyor.</p>
+              </div>
+            ) : (
+              filteredComments.map((comment) => (
+                <div 
+                  key={comment.id}
+                  onMouseEnter={() => setHoveredId(comment.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  className={`relative p-6 rounded-3xl transition-all duration-500 cursor-default group ${
+                    hoveredId === comment.id ? 'bg-white/5 shadow-2xl scale-[1.01] z-50' : 'hover:bg-white/[0.02]'
+                  }`}
+                >
+                  <p className="text-slate-300 text-lg font-medium italic leading-relaxed">
+                    {comment.content}
+                  </p>
+
+                  {hoveredId === comment.id && (
+                    <div className="absolute left-0 top-full mt-4 w-full max-w-lg animate-in fade-in slide-in-from-top-2 duration-300 z-[100]">
+                      <div className="bg-[#0f172a] border border-blue-500/30 rounded-[2rem] p-6 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.8)] backdrop-blur-3xl relative">
+                         <div className="absolute -top-2 left-12 w-4 h-4 bg-[#0f172a] border-t border-l border-blue-500/30 rotate-45"></div>
+                         
+                         <div className="flex items-center gap-4 mb-4 border-b border-white/5 pb-4">
+                            <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-white text-xl shadow-lg border border-white/20">
+                              {comment.username.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="text-white font-black italic text-sm">{comment.username}</p>
+                              <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Personel</p>
+                            </div>
+                         </div>
+                         <p className="text-slate-400 text-[11px] font-bold italic leading-relaxed">
+                           "{comment.content}"
+                         </p>
+                         <div className="mt-4 flex items-center gap-2">
+                            <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                            <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest">
+                              {new Date(comment.date).toLocaleString('tr-TR')}
+                            </span>
+                         </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -178,7 +188,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2">Sistem Durumu</p>
                 <div className="flex items-center justify-between">
                    <span className="text-[10px] font-bold text-slate-300 italic">Veri Kaynağı:</span>
-                   <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">TFS / SharePoint</span>
+                   <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">TeamSync API</span>
                 </div>
                 <div className="flex items-center justify-between mt-2">
                    <span className="text-[10px] font-bold text-slate-300 italic">Son Güncelleme:</span>

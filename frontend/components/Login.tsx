@@ -30,30 +30,13 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
     setIsLoading(true);
     setError(null);
 
-    // Hızlı Giriş: admin/admin kontrolü
-    if (username.toLowerCase() === 'admin' && password === 'admin') {
-      const adminMockData = {
-        access_token: "admin_token_" + Date.now(),
-        user: {
-          full_name: "Yönetici Kullanıcı",
-          username: "admin",
-          employee_id: "ADM-001"
-        }
-      };
-      setTimeout(() => {
-        onLoginSuccess(adminMockData);
-      }, 500);
-      return;
-    }
-
-    // API URL: Curl komutuna göre localhost:8000 default yapıldı
-    const apiUrl = (process.env.API_URL || 'http://localhost:8000').replace(/\/$/, '');
+    const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
     try {
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: {
-          'accept': '*/*', // Curl komutundaki gibi
+          'accept': '*/*',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -63,37 +46,14 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       });
 
       if (!response.ok) {
-        // API hatası durumunda kullanıcıya bilgi ver veya fallback çalıştır
-        const errorData = await response.json().catch(() => ({}));
-        console.warn('Giriş hatası:', errorData);
-        
-        // Geliştirme kolaylığı için fallback (API kapalıyken bile giriş için)
-        const mockData = {
-          access_token: "mock_token_" + Date.now(),
-          user: {
-            full_name: username === "hakanerentug" ? "Hakan Buğra Erentuğ" : username,
-            username: username,
-            employee_id: "EMP-001"
-          }
-        };
-        onLoginSuccess(mockData);
+        setError('Kullanıcı bulunamadı veya giriş yapılamadı.');
         return;
       }
 
       const data = await response.json();
       onLoginSuccess(data);
     } catch (err: any) {
-      console.error('Bağlantı hatası:', err);
-      // Bağlantı hatası olsa bile mock data ile girişe izin ver (User request consistency)
-      const mockData = {
-        access_token: "mock_token_" + Date.now(),
-        user: {
-          full_name: username === "hakanerentug" ? "Hakan Buğra Erentuğ" : username,
-          username: username,
-          employee_id: "EMP-001"
-        }
-      };
-      onLoginSuccess(mockData);
+      setError('Kullanıcı bulunamadı veya giriş yapılamadı.');
     } finally {
       setIsLoading(false);
     }
@@ -152,6 +112,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 placeholder="••••••••"
               />
             </div>
+
+            {error && (
+              <div className="px-5 py-3 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold">
+                {error}
+              </div>
+            )}
 
             <button
               type="submit"
