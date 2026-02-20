@@ -23,8 +23,7 @@ public class AuthService : IAuthService
             var adminUser = new Domain.Entities.User
             {
                 Username = "admin",
-                FullName = "Administrator",
-                EmployeeId = "ADMIN-001"
+                FullName = "Administrator"
             };
             var adminToken = _tokenService.GenerateToken(adminUser);
             return new LoginResponse
@@ -34,7 +33,7 @@ public class AuthService : IAuthService
                 {
                     FullName = adminUser.FullName,
                     Username = adminUser.Username,
-                    EmployeeId = adminUser.EmployeeId
+                    EmployeeId = "ADMIN-001"
                 }
             };
         }
@@ -48,8 +47,7 @@ public class AuthService : IAuthService
             user = new Domain.Entities.User
             {
                 Username = request.Username,
-                FullName = request.Username,
-                EmployeeId = string.Empty
+                FullName = request.Username
             };
             await _userRepository.CreateAsync(user);
         }
@@ -64,7 +62,10 @@ public class AuthService : IAuthService
             {
                 FullName = user.FullName,
                 Username = user.Username,
-                EmployeeId = user.EmployeeId
+                EmployeeId = string.Empty,
+                Title = user.Title,
+                Department = user.Department,
+                Mail = user.Mail
             }
         };
     }

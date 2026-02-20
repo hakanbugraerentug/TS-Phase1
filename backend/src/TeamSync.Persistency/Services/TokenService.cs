@@ -24,7 +24,7 @@ public class TokenService : ITokenService
         {
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(ClaimTypes.GivenName, user.FullName),
-            new Claim("employee_id", user.EmployeeId),
+            new Claim("employee_id", string.Empty), // kept for token backward compatibility; no longer in MongoDB schema
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
