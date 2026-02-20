@@ -4,6 +4,7 @@ using TeamSync.Application.CQRS.Team.Commands.CreateTeam;
 using TeamSync.Application.CQRS.Team.Commands.SetLeader;
 using TeamSync.Application.CQRS.Team.Commands.AddMember;
 using TeamSync.Application.CQRS.Team.Commands.RemoveMember;
+using TeamSync.Application.CQRS.Team.Queries.GetAllTeams;
 using TeamSync.Application.CQRS.Team.Queries.GetTeamById;
 using TeamSync.Application.CQRS.Team.Queries.GetTeamsByProject;
 using TeamSync.Application.CQRS.Team.Queries.GetMyTeams;
@@ -20,6 +21,7 @@ public class TeamsController : ControllerBase
     private readonly SetLeaderCommandHandler _setLeaderHandler;
     private readonly AddMemberCommandHandler _addMemberHandler;
     private readonly RemoveMemberCommandHandler _removeMemberHandler;
+    private readonly GetAllTeamsQueryHandler _getAllTeamsHandler;
     private readonly GetTeamByIdQueryHandler _getTeamByIdHandler;
     private readonly GetTeamsByProjectQueryHandler _getTeamsByProjectHandler;
     private readonly GetMyTeamsQueryHandler _getMyTeamsHandler;
@@ -29,6 +31,7 @@ public class TeamsController : ControllerBase
         SetLeaderCommandHandler setLeaderHandler,
         AddMemberCommandHandler addMemberHandler,
         RemoveMemberCommandHandler removeMemberHandler,
+        GetAllTeamsQueryHandler getAllTeamsHandler,
         GetTeamByIdQueryHandler getTeamByIdHandler,
         GetTeamsByProjectQueryHandler getTeamsByProjectHandler,
         GetMyTeamsQueryHandler getMyTeamsHandler)
@@ -37,9 +40,18 @@ public class TeamsController : ControllerBase
         _setLeaderHandler = setLeaderHandler;
         _addMemberHandler = addMemberHandler;
         _removeMemberHandler = removeMemberHandler;
+        _getAllTeamsHandler = getAllTeamsHandler;
         _getTeamByIdHandler = getTeamByIdHandler;
         _getTeamsByProjectHandler = getTeamsByProjectHandler;
         _getMyTeamsHandler = getMyTeamsHandler;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<List<TeamDto>>> GetAll()
+    {
+        var query = new GetAllTeamsQuery();
+        var result = await _getAllTeamsHandler.Handle(query);
+        return Ok(result);
     }
 
     [HttpPost]

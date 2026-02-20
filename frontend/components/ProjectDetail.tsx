@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User } from '../App';
 
 interface Comment {
@@ -14,27 +14,70 @@ export const ProjectDetail: React.FC<{
   projectTitle: string;
   onBack: () => void;
   user: User;
-}> = ({ projectTitle, onBack, user }) => {
-  // Yorumlar State
-  const [comments, setComments] = useState<Comment[]>([
-    { id: '1', author: 'Hakan Buğra Erentuğ', text: 'Analiz çalışmaları planlandığı gibi devam ediyor. Gelecek hafta test sürecine geçiyoruz.', date: '2024-05-15 14:20' },
-    { id: '2', author: 'Sistem Yöneticisi', text: 'Altyapı hazırlandı, API dökümantasyonu paylaşıldı.', date: '2024-05-14 10:05' }
-  ]);
+}> = ({ projectId, projectTitle, onBack, user }) => {
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleAddComment = (e: React.FormEvent) => {
+  const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+  const fetchComments = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/comments/project/${projectId}`, {
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${user.accessToken}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const mapped: Comment[] = (data || []).map((c: any) => ({
+          id: c.id,
+          author: c.username,
+          text: c.content,
+          date: c.date ? new Date(c.date).toLocaleString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
+        }));
+        setComments(mapped);
+      }
+    } catch (err) {
+      console.error('Yorumlar yüklenemedi:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (projectId) {
+      fetchComments();
+    }
+  }, [projectId, user.accessToken]);
+
+  const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
 
-    const comment: Comment = {
-      id: Date.now().toString(),
-      author: user.name,
-      text: newComment,
-      date: new Date().toLocaleString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-    };
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${apiUrl}/api/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.accessToken}`
+        },
+        body: JSON.stringify({
+          projectId: projectId,
+          text: newComment,
+          author: user.name
+        })
+      });
 
-    setComments([comment, ...comments]);
-    setNewComment('');
+      if (response.ok) {
+        setNewComment('');
+        await fetchComments();
+      }
+    } catch (err) {
+      console.error('Yorum eklenemedi:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -66,9 +109,7 @@ export const ProjectDetail: React.FC<{
                   </div>
                   <div>
                     <p className="text-xs font-black text-white italic">{comment.author}</p>
-                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">
-                      {comment.author === 'Hakan Buğra Erentuğ' ? 'Proje Sahibi' : 'Personel'}
-                    </p>
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Personel</p>
                   </div>
                 </div>
                 <span className="text-[9px] font-black text-slate-600 bg-black/20 px-3 py-1 rounded-full">{comment.date}</span>
@@ -99,7 +140,7 @@ export const ProjectDetail: React.FC<{
             />
             <button 
               type="submit"
-              disabled={!newComment.trim()}
+              disabled={!newComment.trim() || isSubmitting}
               className="px-8 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95 flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

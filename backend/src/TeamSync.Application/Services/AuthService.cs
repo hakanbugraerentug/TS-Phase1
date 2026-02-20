@@ -42,9 +42,16 @@ public class AuthService : IAuthService
         // MongoDB'de username'e göre kullanıcıyı bul (şifre kontrolü YOK)
         var user = await _userRepository.GetByUsernameAsync(request.Username);
 
+        // Eğer user bulunamazsa, otomatik oluştur (demo mode)
         if (user == null)
         {
-            return null; // 401 — kullanıcı bulunamadı
+            user = new Domain.Entities.User
+            {
+                Username = request.Username,
+                FullName = request.Username,
+                EmployeeId = string.Empty
+            };
+            await _userRepository.CreateAsync(user);
         }
 
         // JWT üret

@@ -21,6 +21,11 @@ public class CommentRepository : ICommentRepository
         return comment;
     }
 
+    public async Task<List<Comment>> GetAllAsync()
+    {
+        return await _collection.Find(_ => true).ToListAsync();
+    }
+
     public async Task<List<Comment>> GetByDateRangeAsync(DateTime startDate, DateTime endDate)
     {
         var filter = Builders<Comment>.Filter.And(

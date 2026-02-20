@@ -17,8 +17,8 @@ public class AddCommentCommandHandler
     {
         var comment = new Domain.Entities.Comment
         {
-            Username = command.Request.Username,
-            Content = command.Request.Content,
+            Username = command.Request.Author,
+            Content = command.Request.Text,
             ProjectId = command.Request.ProjectId
         };
 

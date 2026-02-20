@@ -11,7 +11,7 @@ public class CommentDto
 
 public class AddCommentRequest
 {
-    public string Username { get; set; } = string.Empty;
-    public string Content { get; set; } = string.Empty;
     public string ProjectId { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
+    public string Author { get; set; } = string.Empty;
 }
