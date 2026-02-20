@@ -1,3 +1,4 @@
+using MongoDB.Driver;
 using TeamSync.Domain.Entities;
 using TeamSync.Domain.Interfaces;
 using TeamSync.Persistency.Context;
@@ -13,21 +14,30 @@ public class UserRepository : IUserRepository
         _context = context;
     }
 
-    public Task<User?> GetByUsernameAsync(string username)
+    public async Task<User?> GetByUsernameAsync(string username)
     {
-        // MongoDB implementation can be added later
-        return Task.FromResult<User?>(null);
+        return await _context.Users
+            .Find(u => u.Username == username)
+            .FirstOrDefaultAsync();
     }
 
-    public Task<User> CreateAsync(User user)
+    public async Task<byte[]?> GetPhotoByUsernameAsync(string username)
     {
-        // MongoDB implementation can be added later
-        return Task.FromResult(user);
+        var user = await _context.Users
+            .Find(u => u.Username == username)
+            .FirstOrDefaultAsync();
+        return user?.Photo;
     }
 
-    public Task<User> UpdateAsync(User user)
+    public async Task<User> CreateAsync(User user)
     {
-        // MongoDB implementation can be added later
-        return Task.FromResult(user);
+        await _context.Users.InsertOneAsync(user);
+        return user;
+    }
+
+    public async Task<User> UpdateAsync(User user)
+    {
+        await _context.Users.ReplaceOneAsync(u => u.Username == user.Username, user);
+        return user;
     }
 }

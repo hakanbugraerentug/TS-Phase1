@@ -6,18 +6,18 @@ namespace TeamSync.Application.Services;
 
 public class AuthService : IAuthService
 {
-    private readonly ILdapService _ldapService;
+    private readonly IUserRepository _userRepository;
     private readonly ITokenService _tokenService;
 
-    public AuthService(ILdapService ldapService, ITokenService tokenService)
+    public AuthService(IUserRepository userRepository, ITokenService tokenService)
     {
-        _ldapService = ldapService;
+        _userRepository = userRepository;
         _tokenService = tokenService;
     }
 
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
     {
-        // Admin bypass for testing - skip LDAP
+        // Admin bypass for testing
         if (request.Username == "admin" && request.Password == "admin")
         {
             var adminUser = new Domain.Entities.User
@@ -39,18 +39,17 @@ public class AuthService : IAuthService
             };
         }
 
-        // Authenticate against LDAP
-        var user = await _ldapService.AuthenticateAsync(request.Username, request.Password);
+        // MongoDB'de username'e göre kullanıcıyı bul (şifre kontrolü YOK)
+        var user = await _userRepository.GetByUsernameAsync(request.Username);
 
         if (user == null)
         {
-            return null;
+            return null; // 401 — kullanıcı bulunamadı
         }
 
-        // Generate JWT token
+        // JWT üret
         var token = _tokenService.GenerateToken(user);
 
-        // Return response in the format expected by frontend
         return new LoginResponse
         {
             AccessToken = token,
