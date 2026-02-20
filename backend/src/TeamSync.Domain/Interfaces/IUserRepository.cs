@@ -8,4 +8,5 @@ public interface IUserRepository
     Task<User> CreateAsync(User user);
     Task<User> UpdateAsync(User user);
     Task<byte[]?> GetPhotoByUsernameAsync(string username);
+    Task<object?> GetOrgChartAsync(string username);
 }
