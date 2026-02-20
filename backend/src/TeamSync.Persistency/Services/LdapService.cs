@@ -62,8 +62,7 @@ public class LdapService : ILdapService
                     return new User
                     {
                         Username = username,
-                        FullName = fullName,
-                        EmployeeId = employeeId
+                        FullName = fullName
                     };
                 }
 

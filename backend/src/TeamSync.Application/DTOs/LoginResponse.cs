@@ -21,4 +21,13 @@ public class UserInfo
 
     [JsonPropertyName("employee_id")]
     public string EmployeeId { get; set; } = string.Empty;
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("department")]
+    public string Department { get; set; } = string.Empty;
+
+    [JsonPropertyName("mail")]
+    public string Mail { get; set; } = string.Empty;
 }
