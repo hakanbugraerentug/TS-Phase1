@@ -17,6 +17,28 @@ public class AuthService : IAuthService
 
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
     {
+        // Admin bypass for testing - skip LDAP
+        if (request.Username == "admin" && request.Password == "admin")
+        {
+            var adminUser = new Domain.Entities.User
+            {
+                Username = "admin",
+                FullName = "Administrator",
+                EmployeeId = "ADMIN-001"
+            };
+            var adminToken = _tokenService.GenerateToken(adminUser);
+            return new LoginResponse
+            {
+                AccessToken = adminToken,
+                User = new UserInfo
+                {
+                    FullName = adminUser.FullName,
+                    Username = adminUser.Username,
+                    EmployeeId = adminUser.EmployeeId
+                }
+            };
+        }
+
         // Authenticate against LDAP
         var user = await _ldapService.AuthenticateAsync(request.Username, request.Password);
 
