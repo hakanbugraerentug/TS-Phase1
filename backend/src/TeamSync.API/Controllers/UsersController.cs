@@ -17,6 +17,16 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// Tüm kullanıcıları döndürür.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        var users = await _userRepository.GetAllAsync();
+        return Ok(users);
+    }
+
+    /// <summary>
     /// Kullanıcının fotoğrafını PNG olarak döndürür.
     /// MongoDB'deki BinData(0, ...) alanı byte[] olarak okunur ve direkt image/png response döner.
     /// </summary>

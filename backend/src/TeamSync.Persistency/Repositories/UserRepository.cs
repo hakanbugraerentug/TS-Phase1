@@ -41,6 +41,11 @@ public class UserRepository : IUserRepository
         return user;
     }
 
+    public async Task<List<User>> GetAllAsync()
+    {
+        return await _context.Users.Find(_ => true).ToListAsync();
+    }
+
     public async Task<object?> GetOrgChartAsync(string username)
     {
         var activeUser = await _context.Users.Find(u => u.Username == username).FirstOrDefaultAsync();

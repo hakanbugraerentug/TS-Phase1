@@ -9,4 +9,5 @@ public interface IUserRepository
     Task<User> UpdateAsync(User user);
     Task<byte[]?> GetPhotoByUsernameAsync(string username);
     Task<object?> GetOrgChartAsync(string username);
+    Task<List<User>> GetAllAsync();
 }
