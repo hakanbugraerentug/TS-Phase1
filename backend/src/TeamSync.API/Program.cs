@@ -11,6 +11,7 @@ using TeamSync.Application.CQRS.Project.Queries.GetAllProjects;
 using TeamSync.Application.CQRS.Project.Queries.GetProjectById;
 using TeamSync.Application.CQRS.Project.Queries.GetProjectsByOwner;
 using TeamSync.Application.CQRS.Comment.Commands.AddComment;
+using TeamSync.Application.CQRS.Comment.Commands.DeleteComment;
 using TeamSync.Application.CQRS.Comment.Queries.GetAllComments;
 using TeamSync.Application.CQRS.Comment.Queries.GetCommentsByDate;
 using TeamSync.Application.CQRS.Comment.Queries.GetCommentsByProject;
@@ -61,6 +62,7 @@ builder.Services.AddScoped<GetProjectsByOwnerQueryHandler>();
 
 // Register CQRS Comment Handlers
 builder.Services.AddScoped<AddCommentCommandHandler>();
+builder.Services.AddScoped<DeleteCommentCommandHandler>();
 builder.Services.AddScoped<GetAllCommentsQueryHandler>();
 builder.Services.AddScoped<GetCommentsByDateQueryHandler>();
 builder.Services.AddScoped<GetCommentsByProjectQueryHandler>();

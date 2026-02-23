@@ -40,4 +40,11 @@ public class CommentRepository : ICommentRepository
         var filter = Builders<Comment>.Filter.Eq(c => c.ProjectId, projectId);
         return await _collection.Find(filter).ToListAsync();
     }
+
+    public async Task<bool> DeleteAsync(string id)
+    {
+        var filter = Builders<Comment>.Filter.Eq(c => c.Id, id);
+        var result = await _collection.DeleteOneAsync(filter);
+        return result.DeletedCount > 0;
+    }
 }

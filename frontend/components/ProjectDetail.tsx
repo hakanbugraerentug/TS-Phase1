@@ -5,6 +5,7 @@ import { User } from '../App';
 interface Comment {
   id: string;
   author: string;
+  rawAuthor: string;
   text: string;
   date: string;
 }
@@ -34,6 +35,7 @@ export const ProjectDetail: React.FC<{
         const mapped: Comment[] = (data || []).map((c: any) => ({
           id: c.id,
           author: c.username,
+          rawAuthor: c.username,
           text: c.content,
           date: c.date ? new Date(c.date).toLocaleString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
         }));
@@ -80,6 +82,18 @@ export const ProjectDetail: React.FC<{
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await fetch(`${apiUrl}/api/comments/${commentId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${user.accessToken}` }
+      });
+      await fetchComments();
+    } catch (err) {
+      console.error('Yorum silinemedi:', err);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-700">
       {/* Header */}
@@ -101,7 +115,7 @@ export const ProjectDetail: React.FC<{
         {/* Comments List */}
         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
           {comments.map((comment) => (
-            <div key={comment.id} className="bg-[#1e293b]/30 backdrop-blur-md rounded-3xl p-6 border border-white/5 hover:border-blue-500/20 transition-all">
+            <div key={comment.id} className="group bg-[#1e293b]/30 backdrop-blur-md rounded-3xl p-6 border border-white/5 hover:border-blue-500/20 transition-all">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-slate-800 flex items-center justify-center font-black text-blue-400 border border-white/5 shadow-inner">
@@ -112,7 +126,20 @@ export const ProjectDetail: React.FC<{
                     <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Personel</p>
                   </div>
                 </div>
-                <span className="text-[9px] font-black text-slate-600 bg-black/20 px-3 py-1 rounded-full">{comment.date}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-black text-slate-600 bg-black/20 px-3 py-1 rounded-full">{comment.date}</span>
+                  {comment.rawAuthor === user.username && (
+                    <button
+                      onClick={() => handleDeleteComment(comment.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-400"
+                      title="Yorumu sil"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="text-slate-300 text-sm italic leading-relaxed border-l-2 border-blue-600/30 pl-4">
                 {comment.text}
