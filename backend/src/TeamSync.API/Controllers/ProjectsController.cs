@@ -71,9 +71,16 @@ public class ProjectsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ProjectDto>> Create([FromBody] CreateProjectRequest request)
     {
-        var command = new CreateProjectCommand { Request = request };
-        var result = await _createProjectHandler.Handle(command);
-        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        try
+        {
+            var command = new CreateProjectCommand { Request = request };
+            var result = await _createProjectHandler.Handle(command);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPut("{id}")]

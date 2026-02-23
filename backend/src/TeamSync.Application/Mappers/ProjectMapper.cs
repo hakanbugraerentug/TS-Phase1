@@ -13,7 +13,10 @@ public static class ProjectMapper
             Title = project.Title,
             Description = project.Description,
             Owner = project.Owner,
-            Members = project.Members
+            Members = project.Members,
+            Sorumlular = project.Sorumlular.Select(s => new SorumluDto { Etiket = s.Etiket, Isim = s.Isim }).ToList(),
+            IlgiliEkipIdleri = project.IlgiliEkipIdleri,
+            CardImage = project.CardImage
         };
     }
 }
