@@ -8,4 +8,5 @@ public interface ICommentRepository
     Task<List<Comment>> GetAllAsync();
     Task<List<Comment>> GetByDateRangeAsync(DateTime startDate, DateTime endDate);
     Task<List<Comment>> GetByProjectIdAsync(string projectId);
+    Task<bool> DeleteAsync(string id);
 }

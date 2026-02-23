@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TeamSync.Application.CQRS.Comment.Commands.AddComment;
+using TeamSync.Application.CQRS.Comment.Commands.DeleteComment;
 using TeamSync.Application.CQRS.Comment.Queries.GetAllComments;
 using TeamSync.Application.CQRS.Comment.Queries.GetCommentsByDate;
 using TeamSync.Application.CQRS.Comment.Queries.GetCommentsByProject;
@@ -17,17 +18,20 @@ public class CommentsController : ControllerBase
     private readonly GetAllCommentsQueryHandler _getAllCommentsHandler;
     private readonly GetCommentsByDateQueryHandler _getCommentsByDateHandler;
     private readonly GetCommentsByProjectQueryHandler _getCommentsByProjectHandler;
+    private readonly DeleteCommentCommandHandler _deleteCommentHandler;
 
     public CommentsController(
         AddCommentCommandHandler addCommentHandler,
         GetAllCommentsQueryHandler getAllCommentsHandler,
         GetCommentsByDateQueryHandler getCommentsByDateHandler,
-        GetCommentsByProjectQueryHandler getCommentsByProjectHandler)
+        GetCommentsByProjectQueryHandler getCommentsByProjectHandler,
+        DeleteCommentCommandHandler deleteCommentHandler)
     {
         _addCommentHandler = addCommentHandler;
         _getAllCommentsHandler = getAllCommentsHandler;
         _getCommentsByDateHandler = getCommentsByDateHandler;
         _getCommentsByProjectHandler = getCommentsByProjectHandler;
+        _deleteCommentHandler = deleteCommentHandler;
     }
 
     [HttpGet]
@@ -61,5 +65,14 @@ public class CommentsController : ControllerBase
         var query = new GetCommentsByProjectQuery { ProjectId = projectId };
         var result = await _getCommentsByProjectHandler.Handle(query);
         return Ok(result);
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteComment(string id)
+    {
+        var command = new DeleteCommentCommand { Id = id };
+        var result = await _deleteCommentHandler.Handle(command);
+        if (!result) return NotFound();
+        return NoContent();
     }
 }
