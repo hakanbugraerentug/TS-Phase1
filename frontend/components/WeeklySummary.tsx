@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../App';
 
+const LLM_MODEL = 'llama3.2';
+
 interface CommentData {
   id: string;
   username: string;
@@ -26,7 +28,7 @@ interface ProjectSummary {
   hasActivity: boolean;
 }
 
-function generateReport(
+function buildProjectSummaries(
   comments: CommentData[],
   projects: ProjectData[],
   promptInstruction: string
@@ -61,6 +63,8 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiReport, setAiReport] = useState<string>('');
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
@@ -76,7 +80,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
         const projects = projectsRes.ok ? await projectsRes.json() : [];
         setAllComments(comments);
         setAllProjects(projects);
-        setProjectSummaries(generateReport(comments, projects, ''));
+        setProjectSummaries(buildProjectSummaries(comments, projects, ''));
       } finally {
         setIsLoading(false);
       }
@@ -84,10 +88,63 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     fetchData();
   }, [user.accessToken]);
 
-  const handleGenerateReport = () => {
+  const generateReport = async () => {
     setIsGenerating(true);
-    setProjectSummaries(generateReport(allComments, allProjects, prompt));
-    setIsGenerating(false);
+    setGenerateError(null);
+    setAiReport('');
+    try {
+      const baseUrl = (import.meta.env.VITE_OPENAI_BASE_URL || 'http://localhost:11434/v1').replace(/\/$/, '');
+      const apiKey = import.meta.env.VITE_OPEN_API_KEY || 'not-needed-for-local';
+
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const weeklyComments = allComments.filter(c => new Date(c.date) >= oneWeekAgo);
+
+      const commentList = weeklyComments.map(c =>
+        `- ${c.username} (proje: ${c.projectId}, tarih: ${new Date(c.date).toLocaleDateString('tr-TR')}): ${c.content}`
+      ).join('\n');
+
+      const userMessage = [
+        prompt ? `Talimat: ${prompt}\n` : '',
+        `Yorumlar:\n${commentList || '(Bu hafta yorum bulunamadı.)'}`
+      ].join('');
+
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: LLM_MODEL,
+          messages: [
+            {
+              role: 'system',
+              content: 'Sen bir kurumsal rapor yazarısın. Aşağıdaki haftalık yorum verilerini analiz ederek kurumsal, profesyonel ve özlü bir haftalık faaliyet raporu oluştur. Türkçe yaz.'
+            },
+            {
+              role: 'user',
+              content: userMessage
+            }
+          ],
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content: string = data?.choices?.[0]?.message?.content ?? '';
+      if (!content) throw new Error('Model yanıt vermedi.');
+      setAiReport(content);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setGenerateError(`Rapor oluşturulamadı: ${msg}`);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -120,64 +177,84 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
               <div className="flex justify-center py-20">
                 <div className="w-10 h-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
               </div>
-            ) : projectSummaries.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 opacity-40">
-                <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Henüz rapor bulunmuyor.</p>
-              </div>
             ) : (
-              projectSummaries.map((summary) => (
-                <div key={summary.project.id} className="mb-8">
-                  <div className="flex items-center gap-3 mb-4 border-b border-white/10 pb-3">
-                    <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">======</span>
-                    <h3 className="text-base font-black text-white italic tracking-tight">{summary.project.title}</h3>
-                    <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">======</span>
+              <>
+                {isGenerating && (
+                  <div className="flex justify-center py-10">
+                    <div className="w-10 h-10 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
                   </div>
-                  {!summary.hasActivity ? (
-                    <p className="text-slate-500 text-xs italic pl-4 border-l-2 border-slate-700">
-                      Bu hafta henüz bir güncelleme girilmedi.
-                    </p>
-                  ) : (
-                    summary.bullets.map((bullet, idx) => (
-                      <div
-                        key={idx}
-                        className="relative group/bullet"
-                        onMouseEnter={() => setHoveredBullet(`${summary.project.id}-${idx}`)}
-                        onMouseLeave={() => setHoveredBullet(null)}
-                      >
-                        <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-white/5 transition-all cursor-default">
-                          <span className="text-blue-500 mt-1">•</span>
-                          <span className="text-slate-300 text-sm italic leading-relaxed flex-1">{bullet.text}</span>
-                          <span className="text-[8px] font-black text-blue-500/40 uppercase tracking-widest self-center opacity-0 group-hover/bullet:opacity-100 transition-opacity">
-                            {bullet.sourceComments.length} kaynak
-                          </span>
-                        </div>
-
-                        {hoveredBullet === `${summary.project.id}-${idx}` && (
-                          <div className="absolute left-4 top-full mt-2 z-50 w-80 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <div className="bg-[#0f172a] border border-blue-500/30 rounded-2xl p-4 shadow-2xl backdrop-blur-xl">
-                              <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-3">Kaynak Yorumlar</p>
-                              {bullet.sourceComments.map((c, i) => (
-                                <div key={i} className="mb-3 last:mb-0 p-3 bg-white/5 rounded-xl border border-white/5">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <div className="w-5 h-5 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-[8px]">
-                                      {c.username.charAt(0).toUpperCase()}
-                                    </div>
-                                    <span className="text-white font-black text-[10px] italic">{c.username}</span>
-                                    <span className="text-slate-600 text-[8px]">
-                                      {new Date(c.date).toLocaleDateString('tr-TR')}
-                                    </span>
-                                  </div>
-                                  <p className="text-slate-400 text-[10px] italic leading-relaxed">"{c.content}"</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                )}
+                {generateError && (
+                  <div className="mb-6 p-4 bg-red-900/20 border border-red-500/30 rounded-2xl">
+                    <p className="text-red-400 text-xs font-bold">{generateError}</p>
+                  </div>
+                )}
+                {aiReport && (
+                  <div className="mb-8 p-6 bg-blue-900/10 border border-blue-500/20 rounded-2xl">
+                    <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-3">AI Tarafından Oluşturulan Rapor</p>
+                    <div className="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">{aiReport}</div>
+                  </div>
+                )}
+                {projectSummaries.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 opacity-40">
+                    <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Henüz rapor bulunmuyor.</p>
+                  </div>
+                ) : (
+                  projectSummaries.map((summary) => (
+                    <div key={summary.project.id} className="mb-8">
+                      <div className="flex items-center gap-3 mb-4 border-b border-white/10 pb-3">
+                        <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">======</span>
+                        <h3 className="text-base font-black text-white italic tracking-tight">{summary.project.title}</h3>
+                        <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">======</span>
                       </div>
-                    ))
-                  )}
-                </div>
-              ))
+                      {!summary.hasActivity ? (
+                        <p className="text-slate-500 text-xs italic pl-4 border-l-2 border-slate-700">
+                          Bu hafta henüz bir güncelleme girilmedi.
+                        </p>
+                      ) : (
+                        summary.bullets.map((bullet, idx) => (
+                          <div
+                            key={idx}
+                            className="relative group/bullet"
+                            onMouseEnter={() => setHoveredBullet(`${summary.project.id}-${idx}`)}
+                            onMouseLeave={() => setHoveredBullet(null)}
+                          >
+                            <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-white/5 transition-all cursor-default">
+                              <span className="text-blue-500 mt-1">•</span>
+                              <span className="text-slate-300 text-sm italic leading-relaxed flex-1">{bullet.text}</span>
+                              <span className="text-[8px] font-black text-blue-500/40 uppercase tracking-widest self-center opacity-0 group-hover/bullet:opacity-100 transition-opacity">
+                                {bullet.sourceComments.length} kaynak
+                              </span>
+                            </div>
+
+                            {hoveredBullet === `${summary.project.id}-${idx}` && (
+                              <div className="absolute left-4 top-full mt-2 z-50 w-80 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="bg-[#0f172a] border border-blue-500/30 rounded-2xl p-4 shadow-2xl backdrop-blur-xl">
+                                  <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-3">Kaynak Yorumlar</p>
+                                  {bullet.sourceComments.map((c, i) => (
+                                    <div key={i} className="mb-3 last:mb-0 p-3 bg-white/5 rounded-xl border border-white/5">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <div className="w-5 h-5 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-[8px]">
+                                          {c.username.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span className="text-white font-black text-[10px] italic">{c.username}</span>
+                                        <span className="text-slate-600 text-[8px]">
+                                          {new Date(c.date).toLocaleDateString('tr-TR')}
+                                        </span>
+                                      </div>
+                                      <p className="text-slate-400 text-[10px] italic leading-relaxed">"{c.content}"</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ))
+                )}
+              </>
             )}
           </div>
         </div>
@@ -208,9 +285,9 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
 
               <div className="space-y-4">
                 <button
-                  onClick={handleGenerateReport}
-                  disabled={isGenerating}
-                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95"
+                  onClick={generateReport}
+                  disabled={isGenerating || allComments.length === 0}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95"
                 >
                   {isGenerating ? 'Derleniyor...' : 'Raporu Yeniden Derle'}
                 </button>
