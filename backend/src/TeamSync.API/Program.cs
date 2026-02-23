@@ -34,8 +34,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<LdapSettings>(builder.Configuration.GetSection("LdapSettings"));
 builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDbSettings"));
+builder.Services.Configure<VlmSettings>(builder.Configuration.GetSection("VlmSettings"));
 
 // Register services - Infrastructure Layer
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<ILdapService, LdapService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
@@ -43,6 +45,8 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ITeamRepository, TeamRepository>();
+builder.Services.AddScoped<IVlmImageService, VlmImageService>();
+builder.Services.AddScoped<IPlaceholderImageService, PlaceholderImageService>();
 
 // Register services - Application Layer
 builder.Services.AddScoped<IAuthService, AuthService>();

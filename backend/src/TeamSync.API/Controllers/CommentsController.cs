@@ -41,9 +41,20 @@ public class CommentsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<CommentDto>> AddComment([FromBody] AddCommentRequest request)
     {
-        var command = new AddCommentCommand { Request = request };
-        var result = await _addCommentHandler.Handle(command);
-        return StatusCode(201, result);
+        try
+        {
+            var command = new AddCommentCommand { Request = request };
+            var result = await _addCommentHandler.Handle(command);
+            return StatusCode(201, result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpGet("by-date")]
