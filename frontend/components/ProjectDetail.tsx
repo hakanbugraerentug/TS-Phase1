@@ -18,7 +18,6 @@ export const ProjectDetail: React.FC<{
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [canComment, setCanComment] = useState(true);
 
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
@@ -45,45 +44,9 @@ export const ProjectDetail: React.FC<{
     }
   };
 
-  const checkCanComment = async () => {
-    try {
-      const [projectRes, teamsRes] = await Promise.all([
-        fetch(`${apiUrl}/api/projects/${projectId}`, {
-          headers: { 'Authorization': `Bearer ${user.accessToken}` }
-        }),
-        fetch(`${apiUrl}/api/teams/my-teams`, {
-          headers: { 'Authorization': `Bearer ${user.accessToken}` }
-        })
-      ]);
-
-      if (!projectRes.ok) return;
-
-      const project = await projectRes.json();
-      const ilgiliEkipIdleri: string[] = project.ilgiliEkipIdleri || [];
-
-      if (ilgiliEkipIdleri.length === 0) {
-        setCanComment(true);
-        return;
-      }
-
-      if (!teamsRes.ok) {
-        setCanComment(false);
-        return;
-      }
-
-      const myTeams = await teamsRes.json();
-      const myTeamIds: string[] = (myTeams || []).map((t: any) => t.id);
-      const authorized = ilgiliEkipIdleri.some(id => myTeamIds.includes(id));
-      setCanComment(authorized);
-    } catch {
-      setCanComment(true);
-    }
-  };
-
   useEffect(() => {
     if (projectId) {
       fetchComments();
-      checkCanComment();
     }
   }, [projectId, user.accessToken]);
 
@@ -109,9 +72,6 @@ export const ProjectDetail: React.FC<{
       if (response.ok) {
         setNewComment('');
         await fetchComments();
-      } else if (response.status === 403) {
-        const errData = await response.json();
-        alert(errData.message || 'Bu projeye yorum yapma yetkiniz yok.');
       }
     } catch (err) {
       console.error('Yorum eklenemedi:', err);
@@ -171,30 +131,24 @@ export const ProjectDetail: React.FC<{
 
         {/* New Comment Form */}
         <div className="bg-[#0f172a] rounded-3xl border border-white/10 p-6 shadow-2xl">
-          {canComment ? (
-            <form onSubmit={handleAddComment} className="flex gap-4">
-              <textarea 
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Ekibe bir not bırakın veya soru sorun..."
-                className="flex-1 bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-4 text-white text-sm outline-none focus:border-blue-500/50 transition-all resize-none italic h-16"
-              />
-              <button 
-                type="submit"
-                disabled={!newComment.trim() || isSubmitting}
-                className="px-8 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95 flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-                Gönder
-              </button>
-            </form>
-          ) : (
-            <div className="p-4 bg-slate-900/30 rounded-2xl border border-white/5 text-center">
-              <p className="text-slate-500 text-xs italic">Bu projeye yalnızca ilgili ekiplerin üyeleri yorum yapabilir.</p>
-            </div>
-          )}
+          <form onSubmit={handleAddComment} className="flex gap-4">
+            <textarea 
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Ekibe bir not bırakın veya soru sorun..."
+              className="flex-1 bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-4 text-white text-sm outline-none focus:border-blue-500/50 transition-all resize-none italic h-16"
+            />
+            <button 
+              type="submit"
+              disabled={!newComment.trim() || isSubmitting}
+              className="px-8 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+              Gönder
+            </button>
+          </form>
         </div>
       </div>
     </div>
