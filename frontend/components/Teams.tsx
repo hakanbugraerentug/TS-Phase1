@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../App';
 
 interface Team {
@@ -10,6 +10,11 @@ interface Team {
   members: string[]; 
 }
 
+interface AppUser {
+  username: string;
+  fullName: string;
+}
+
 export const Teams: React.FC<{ user: User }> = ({ user }) => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -18,6 +23,16 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
+  const [leaderInput, setLeaderInput] = useState('');
+  const [leaderDropdownOpen, setLeaderDropdownOpen] = useState(false);
+  const [memberInput, setMemberInput] = useState('');
+  const [memberDropdownOpen, setMemberDropdownOpen] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+
+  const leaderRef = useRef<HTMLDivElement>(null);
+  const memberRef = useRef<HTMLDivElement>(null);
   
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
@@ -44,7 +59,60 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
     }
   };
 
-  useEffect(() => { fetchTeams(); }, [user.accessToken]);
+  const fetchAllUsers = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/users`, {
+        headers: {
+          'accept': 'application/json',
+          'Authorization': `Bearer ${user.accessToken}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAllUsers(
+          (data || []).map((u: any) => ({
+            username: u.username ?? u.Username ?? '',
+            fullName: u.fullName ?? u.FullName ?? ''
+          }))
+        );
+      }
+    } catch (err) {
+      console.error('Kullanıcılar yüklenemedi:', err);
+    }
+  };
+
+  useEffect(() => { fetchTeams(); fetchAllUsers(); }, [user.accessToken]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (leaderRef.current && !leaderRef.current.contains(e.target as Node)) setLeaderDropdownOpen(false);
+      if (memberRef.current && !memberRef.current.contains(e.target as Node)) setMemberDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredLeaderUsers = allUsers.filter(u =>
+    u.username.toLowerCase().includes(leaderInput.toLowerCase()) ||
+    u.fullName.toLowerCase().includes(leaderInput.toLowerCase())
+  );
+
+  const filteredMemberUsers = allUsers.filter(u =>
+    (u.username.toLowerCase().includes(memberInput.toLowerCase()) ||
+     u.fullName.toLowerCase().includes(memberInput.toLowerCase())) &&
+    !selectedMembers.includes(u.username)
+  );
+
+  const handleOpenModal = () => {
+    setIsModalOpen(true);
+    setNewTitle('');
+    setNewDescription('');
+    setLeaderInput('');
+    setMemberInput('');
+    setSelectedMembers([]);
+    setLeaderDropdownOpen(false);
+    setMemberDropdownOpen(false);
+  };
 
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,8 +129,12 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
         body: JSON.stringify({
           title: newTitle,
           description: newDescription,
-          leader: user.username,
-          members: [user.username],
+          leader: leaderInput || user.username,
+          members: (() => {
+            const leader = leaderInput || user.username;
+            const base = selectedMembers.length > 0 ? selectedMembers : [user.username];
+            return base.includes(leader) ? base : [leader, ...base];
+          })(),
           projectId: ''
         })
       });
@@ -72,6 +144,8 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
         setIsModalOpen(false);
         setNewTitle('');
         setNewDescription('');
+        setLeaderInput('');
+        setSelectedMembers([]);
       }
     } catch (err) {
       console.error('Ekip oluşturulamadı:', err);
@@ -83,7 +157,7 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
   if (isLoading) return <div className="flex justify-center py-40 animate-spin w-10 h-10 border-4 border-t-blue-600 border-white/10 rounded-full mx-auto"></div>;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="max-w-7xl mx-auto space-y-8">
       <div className="mb-4 flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-black text-white tracking-tight italic">Ekiplerim</h2>
@@ -91,7 +165,7 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
         </div>
 
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleOpenModal}
           className="group flex items-center gap-3 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 px-6 py-3.5 rounded-2xl shadow-xl shadow-blue-500/20 transition-all active:scale-95 border border-white/10"
         >
           <div className="w-5 h-5 bg-white/20 rounded-lg flex items-center justify-center group-hover:rotate-90 transition-transform">
@@ -139,6 +213,78 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
                     rows={3}
                     className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-5 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all resize-none italic"
                   />
+                </div>
+
+                {/* Leader Autocomplete */}
+                <div className="space-y-2" ref={leaderRef}>
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Ekip Lideri</label>
+                  <div className="relative">
+                    <input
+                      value={leaderInput}
+                      onChange={(e) => { setLeaderInput(e.target.value); setLeaderDropdownOpen(true); }}
+                      onFocus={() => setLeaderDropdownOpen(true)}
+                      placeholder="Lider ara..."
+                      className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-5 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all"
+                    />
+                    {leaderDropdownOpen && filteredLeaderUsers.length > 0 && (
+                      <ul className="absolute z-10 left-0 right-0 mt-2 bg-[#1e293b] border border-white/10 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+                        {filteredLeaderUsers.map(u => (
+                          <li
+                            key={u.username}
+                            onMouseDown={() => { setLeaderInput(u.username); setLeaderDropdownOpen(false); }}
+                            className="px-6 py-3 text-white font-bold text-sm cursor-pointer hover:bg-blue-600/20 transition-colors"
+                          >
+                            {u.fullName ? `${u.fullName} (${u.username})` : u.username}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+
+                {/* Members Multi-select */}
+                <div className="space-y-2" ref={memberRef}>
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Ekip Üyeleri</label>
+                  <div className="relative">
+                    <div className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-4 py-3 focus-within:border-blue-500/50 focus-within:bg-slate-900 transition-all">
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {selectedMembers.map(m => (
+                          <span key={m} className="flex items-center gap-1 bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs font-bold px-3 py-1 rounded-full">
+                            {m}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedMembers(prev => prev.filter(x => x !== m))}
+                              className="ml-1 text-blue-400 hover:text-white transition-colors"
+                            >×</button>
+                          </span>
+                        ))}
+                      </div>
+                      <input
+                        value={memberInput}
+                        onChange={(e) => { setMemberInput(e.target.value); setMemberDropdownOpen(true); }}
+                        onFocus={() => setMemberDropdownOpen(true)}
+                        placeholder="Üye ara..."
+                        className="w-full bg-transparent text-white font-bold outline-none placeholder:text-slate-600"
+                      />
+                    </div>
+                    {memberDropdownOpen && filteredMemberUsers.length > 0 && (
+                      <ul className="absolute z-10 left-0 right-0 mt-2 bg-[#1e293b] border border-white/10 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+                        {filteredMemberUsers.map(u => (
+                          <li
+                            key={u.username}
+                            onMouseDown={() => {
+                              setSelectedMembers(prev => [...prev, u.username]);
+                              setMemberInput('');
+                              setMemberDropdownOpen(false);
+                            }}
+                            className="px-6 py-3 text-white font-bold text-sm cursor-pointer hover:bg-blue-600/20 transition-colors"
+                          >
+                            {u.fullName ? `${u.fullName} (${u.username})` : u.username}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex gap-4 pt-4">
