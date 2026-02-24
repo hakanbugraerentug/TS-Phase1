@@ -5,7 +5,7 @@ Successfully implemented a complete .NET 8 backend for the TeamSync frontend app
 
 ## Implementation Statistics
 - **4 Projects** organized into clean architecture layers
-- **17 Source Files** implementing the complete solution
+- **17+ Source Files** implementing the complete solution
 - **0 Build Warnings**
 - **0 Build Errors**
 - **0 Security Vulnerabilities** (CodeQL scan passed)
@@ -37,22 +37,40 @@ External concerns implementation, depends on Domain and Application.
 **Files:**
 - `Services/LdapService.cs` - LDAP authentication with System.DirectoryServices.Protocols
 - `Services/TokenService.cs` - JWT token generation
+- `Services/VlmImageService.cs` - VLM image generation via named HttpClient
 - `Repositories/UserRepository.cs` - User repository (MongoDB ready)
 - `Context/MongoDbContext.cs` - MongoDB database context
 - `Settings/JwtSettings.cs` - JWT configuration model
 - `Settings/LdapSettings.cs` - LDAP configuration model
 - `Settings/MongoDbSettings.cs` - MongoDB configuration model
+- `Settings/VlmSettings.cs` - VLM configuration model (includes `CaCertPath`)
+- `Settings/LlmSettings.cs` - LLM configuration model (includes `CaCertPath`)
 
 ### 4. Presentation Layer (TeamSync.API)
 HTTP API endpoints, depends on Application and Persistency.
 
 **Files:**
 - `Controllers/AuthController.cs` - Authentication endpoints
+- `Controllers/ProjectsController.cs` - Project CRUD endpoints
+- `Controllers/TeamsController.cs` - Team management endpoints
+- `Controllers/CommentsController.cs` - Comment endpoints
+- `Controllers/UsersController.cs` - User endpoints
+- `Controllers/LlmController.cs` - LLM chat proxy endpoint (`POST /api/llm/chat`)
 - `Program.cs` - Application startup and configuration
 - `appsettings.json` - Configuration settings
 - `appsettings.Development.json` - Development-specific settings
 
 ## Key Features
+
+### ✅ LLM Chat Proxy with Custom CA Support
+- `POST /api/llm/chat` proxies OpenAI-compatible chat completions to the configured LLM endpoint
+- Supports custom CA certificates via `LlmSettings.CaCertPath` for corporate HTTPS endpoints
+- Model name always sourced from backend config (not from the frontend request)
+- Requires JWT authorization
+
+### ✅ VLM Custom CA Support
+- `VlmImageService` uses a named `"VlmClient"` HttpClient registered with optional CA cert
+- Supports custom CA certificates via `VlmSettings.CaCertPath`
 
 ### ✅ LDAP Authentication
 - Uses `System.DirectoryServices.Protocols` for Windows/Active Directory authentication

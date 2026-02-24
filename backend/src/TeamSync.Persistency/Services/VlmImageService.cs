@@ -36,7 +36,7 @@ public class VlmImageService : IVlmImageService
         };
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_settings.TimeoutSeconds));
-        var client = _httpClientFactory.CreateClient();
+        var client = _httpClientFactory.CreateClient("VlmClient");
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_settings.ApiKey}");
         client.DefaultRequestHeaders.Add("Accept", "application/json");
 
