@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User } from '../App';
+import { UserAvatar } from './UserAvatar';
 
 interface Sorumlu {
   etiket: string;
@@ -386,9 +387,7 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
                       <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest mb-2">Proje Sorumluları</p>
                       <div className="flex -space-x-2">
                          {(project.members || [project.owner]).slice(0, 3).map((member, uIdx) => (
-                           <div key={uIdx} className="w-8 h-8 rounded-xl bg-slate-800 border-2 border-[#1e293b] flex items-center justify-center text-[9px] font-black text-blue-400 shadow-xl group-hover:border-blue-500/20 transition-all">
-                             {member.charAt(0).toUpperCase()}
-                           </div>
+                           <UserAvatar key={uIdx} username={member} displayName={member} accessToken={user.accessToken} size="sm" className="border-2 border-[#1e293b] shadow-xl group-hover:border-blue-500/20 transition-all" />
                          ))}
                       </div>
                    </div>

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../App';
+import { UserAvatar } from './UserAvatar';
 
 interface OrgChartNode {
   username: string;
@@ -27,7 +28,8 @@ function flattenManagerChain(node: OrgChartNode): OrgChartNode[] {
 const OrgNode: React.FC<{
   node: OrgChartNode;
   isActive?: boolean;
-}> = ({ node, isActive }) => (
+  accessToken: string;
+}> = ({ node, isActive, accessToken }) => (
   <div className={`
     w-64 p-5 rounded-[2rem] border transition-all duration-500 cursor-default
     ${isActive
@@ -36,12 +38,13 @@ const OrgNode: React.FC<{
     }
   `}>
     <div className="flex items-center gap-4">
-      <div className={`
-        w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-lg border flex-shrink-0
-        ${isActive ? 'bg-white text-blue-600 border-white' : 'bg-slate-800 text-blue-400 border-white/10'}
-      `}>
-        {node.fullName ? node.fullName.charAt(0) : '?'}
-      </div>
+      <UserAvatar
+        username={node.username}
+        displayName={node.fullName || node.username}
+        accessToken={accessToken}
+        size="md"
+        className={`shadow-lg border flex-shrink-0 ${isActive ? 'border-white' : 'border-white/10'}`}
+      />
       <div className="overflow-hidden">
         <h4 className={`font-black italic text-sm tracking-tight truncate ${isActive ? 'text-white' : 'text-slate-200'}`}>
           {node.fullName || node.username}
@@ -163,7 +166,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
           {/* Manager zinciri — tepeden aşağıya */}
           {managerChain.map((mgr, idx) => (
             <div key={mgr.username || idx} className="flex flex-col items-center">
-              <OrgNode node={mgr} isActive={false} />
+              <OrgNode node={mgr} isActive={false} accessToken={user.accessToken} />
               <div className="w-px h-10 bg-gradient-to-b from-blue-500 to-blue-500/50" />
             </div>
           ))}
@@ -180,20 +183,20 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
               {orgData.siblings.slice(0, Math.ceil(orgData.siblings.length / 2)).map((sib, idx) => (
                 <div key={sib.username || idx} className="flex flex-col items-center pt-6">
                   <div className="w-px h-6 bg-blue-500/40 mb-0" />
-                  <OrgNode node={sib} isActive={false} />
+                  <OrgNode node={sib} isActive={false} accessToken={user.accessToken} />
                 </div>
               ))}
 
               {/* Aktif kullanıcı */}
               <div className="flex flex-col items-center pt-2">
-                <OrgNode node={orgData} isActive={true} />
+                <OrgNode node={orgData} isActive={true} accessToken={user.accessToken} />
               </div>
 
               {/* Sağ sibling'ler */}
               {orgData.siblings.slice(Math.ceil(orgData.siblings.length / 2)).map((sib, idx) => (
                 <div key={sib.username || idx} className="flex flex-col items-center pt-6">
                   <div className="w-px h-6 bg-blue-500/40 mb-0" />
-                  <OrgNode node={sib} isActive={false} />
+                  <OrgNode node={sib} isActive={false} accessToken={user.accessToken} />
                 </div>
               ))}
             </div>

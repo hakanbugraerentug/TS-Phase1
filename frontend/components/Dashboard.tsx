@@ -6,6 +6,7 @@ import { WeeklySummary } from './WeeklySummary';
 import { OrgChart } from './OrgChart';
 import { Teams } from './Teams';
 import { User } from '../App';
+import { UserAvatar } from './UserAvatar';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -78,9 +79,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
 
         <div className="mt-auto p-6 border-t border-white/5 bg-[#020617]/40">
           <div className="flex items-center gap-3 mb-6 px-1 group cursor-pointer">
-            <div className="w-10 h-10 rounded-xl bg-slate-800 border border-white/10 flex items-center justify-center font-black text-blue-400">
-               {user.name.charAt(0)}
-            </div>
+            <UserAvatar username={user.username} displayName={user.name} accessToken={user.accessToken} size="md" />
             <div className="overflow-hidden">
               <p className="text-xs font-black truncate text-slate-200">{user.name}</p>
               <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Aktif Kullanıcı</p>
