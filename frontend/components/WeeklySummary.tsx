@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../App';
 
-const LLM_MODEL = 'llama3.2';
 
 interface CommentData {
   id: string;
@@ -93,8 +92,9 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     setGenerateError(null);
     setAiReport('');
     try {
-      const baseUrl = (import.meta.env.VITE_OPENAI_BASE_URL || 'http://localhost:11434/v1').replace(/\/$/, '');
-      const apiKey = import.meta.env.VITE_OPEN_API_KEY || 'not-needed-for-local';
+      const baseUrl = (import.meta.env.VITE_LLM_BASE_URL || 'http://localhost:11434/v1').replace(/\/$/, '');
+      const apiKey = import.meta.env.VITE_LLM_API_KEY || 'not-needed-for-local';
+      const llmModel = import.meta.env.VITE_LLM_MODEL || 'llama3.2';
 
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -116,7 +116,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: LLM_MODEL,
+          model: llmModel,
           messages: [
             {
               role: 'system',
