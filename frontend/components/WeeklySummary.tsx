@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User } from '../App';
+import { UserAvatar } from './UserAvatar';
 
 
 interface CommentData {
@@ -185,9 +186,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
                   {bullet.sourceComments.map((c, i) => (
                     <div key={i} className="mb-3 last:mb-0 p-3 bg-white/5 rounded-xl border border-white/5">
                       <div className="flex items-center gap-2 mb-1">
-                        <div className="w-5 h-5 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black text-[8px]">
-                          {c.username.charAt(0).toUpperCase()}
-                        </div>
+                        <UserAvatar username={c.username} displayName={c.username} accessToken={user.accessToken} size="sm" />
                         <span className="text-white font-black text-[10px] italic">{c.username}</span>
                         <span className="text-slate-600 text-[8px]">
                           {new Date(c.date).toLocaleDateString('tr-TR')}

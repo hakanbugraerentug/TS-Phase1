@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../App';
+import { UserAvatar } from './UserAvatar';
 
 interface Team {
   id: string;
@@ -318,7 +319,7 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
           teams.map((team, idx) => (
             <div key={team.id || idx} onClick={() => setSelectedTeam(team)} className="bg-[#1e293b]/30 rounded-[2.5rem] p-8 border border-white/5 hover:border-blue-500/20 cursor-pointer transition-all">
               <div className="flex gap-8 items-center">
-                <div className="w-20 h-20 rounded-3xl bg-slate-800 border-2 border-blue-500/20 flex items-center justify-center font-black text-2xl text-blue-400">{team.leader?.charAt(0)}</div>
+                <UserAvatar username={team.leader || ''} displayName={team.leader || ''} accessToken={user.accessToken} size="lg" />
                 <div>
                   <h3 className="text-2xl font-black text-white italic">{team.title}</h3>
                   <p className="text-slate-500 text-xs font-medium italic mt-1">{team.description}</p>
