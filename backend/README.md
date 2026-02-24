@@ -54,11 +54,60 @@ Update `appsettings.json` in the TeamSync.API project (or set environment variab
   "MongoDbSettings": {
     "ConnectionString": "mongodb://localhost:27017",
     "DatabaseName": "TeamSyncDb"
+  },
+  "VlmSettings": {
+    "BaseUrl": "https://your-vlm-host/",
+    "ApiKey": "your-api-key",
+    "Model": "your-model-name",
+    "ImageSize": "1024x1024",
+    "TimeoutSeconds": 8,
+    "CaCertPath": "/path/to/corporate-ca.pem"
+  },
+  "LlmSettings": {
+    "BaseUrl": "https://your-llm-host/",
+    "ApiKey": "your-api-key",
+    "Model": "your-model-name",
+    "CaCertPath": "/path/to/corporate-ca.pem"
   }
 }
 ```
 
 See `.env.example` for environment variable reference.
+
+## LLM Proxy Endpoint
+
+The backend exposes a proxy endpoint for LLM chat completions, used by the `WeeklySummary` frontend component:
+
+### POST /api/llm/chat
+
+Requires JWT authorization. Forwards the request to the configured `LlmSettings.BaseUrl` using an `HttpClient` that trusts the configured corporate CA certificate.
+
+**Request body** (OpenAI-compatible):
+```json
+{
+  "messages": [
+    { "role": "system", "content": "..." },
+    { "role": "user", "content": "..." }
+  ],
+  "stream": false
+}
+```
+
+The `model` field is always sourced from the backend `LlmSettings.Model` configuration.
+
+## Corporate CA Certificate Support
+
+Both the VLM (image generation) and LLM (chat) HTTP clients support custom CA certificates for corporate internal networks where the endpoint uses a self-signed or private CA certificate.
+
+Set `CaCertPath` in the respective settings section (or the corresponding env var) to the **absolute path** of a PEM or CER file containing the corporate CA certificate. When set and the file exists, the `HttpClient` will validate the server certificate against that CA. If not set, standard system TLS validation applies.
+
+```
+# In backend/.env or environment variables:
+VLM_CA_CERT_PATH=/path/to/corporate-ca.pem
+LLM_CA_CERT_PATH=/path/to/corporate-ca.pem
+```
+
+> **Security note**: The custom CA validation callback only allows the server certificate chain when it builds successfully using the provided CA. It does **not** blindly skip all TLS verification.
 
 ## Building the Solution
 

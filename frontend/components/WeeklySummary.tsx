@@ -92,10 +92,6 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     setGenerateError(null);
     setAiReport('');
     try {
-      const baseUrl = (import.meta.env.VITE_LLM_BASE_URL || 'http://localhost:11434/v1').replace(/\/$/, '');
-      const apiKey = import.meta.env.VITE_LLM_API_KEY || 'not-needed-for-local';
-      const llmModel = import.meta.env.VITE_LLM_MODEL || 'llama3.2';
-
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       const weeklyComments = allComments.filter(c => new Date(c.date) >= oneWeekAgo);
@@ -109,14 +105,13 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
         `Yorumlar:\n${commentList || '(Bu hafta yorum bulunamadı.)'}`
       ].join('');
 
-      const response = await fetch(`${baseUrl}/chat/completions`, {
+      const response = await fetch(`${apiUrl}/api/llm/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${user.accessToken}`,
         },
         body: JSON.stringify({
-          model: llmModel,
           messages: [
             {
               role: 'system',

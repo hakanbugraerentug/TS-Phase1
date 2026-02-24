@@ -1,3 +1,5 @@
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -36,9 +38,49 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSet
 builder.Services.Configure<LdapSettings>(builder.Configuration.GetSection("LdapSettings"));
 builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDbSettings"));
 builder.Services.Configure<VlmSettings>(builder.Configuration.GetSection("VlmSettings"));
+builder.Services.Configure<LlmSettings>(builder.Configuration.GetSection("LlmSettings"));
 
 // Register services - Infrastructure Layer
 builder.Services.AddHttpClient();
+
+static HttpClientHandler CreateHandlerWithCaCert(string caCertPath, ILogger logger)
+{
+    var handler = new HttpClientHandler();
+    if (!string.IsNullOrEmpty(caCertPath) && File.Exists(caCertPath))
+    {
+        try
+        {
+            var caCert = new X509Certificate2(caCertPath);
+            handler.ServerCertificateCustomValidationCallback = (message, cert, chain, errors) =>
+            {
+                if (errors == SslPolicyErrors.None) return true;
+                chain!.ChainPolicy.ExtraStore.Add(caCert);
+                chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
+                return chain.Build(cert!);
+            };
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Failed to load CA certificate from '{Path}': {Message}", caCertPath, ex.Message);
+        }
+    }
+    return handler;
+}
+
+// Register named HttpClient for VLM with optional custom CA certificate
+var vlmConfig = builder.Configuration.GetSection("VlmSettings").Get<VlmSettings>() ?? new VlmSettings();
+builder.Services.AddHttpClient("VlmClient")
+    .ConfigurePrimaryHttpMessageHandler(sp => CreateHandlerWithCaCert(
+        vlmConfig.CaCertPath,
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger("VlmClient")));
+
+// Register named HttpClient for LLM with optional custom CA certificate
+var llmConfig = builder.Configuration.GetSection("LlmSettings").Get<LlmSettings>() ?? new LlmSettings();
+builder.Services.AddHttpClient("LlmClient")
+    .ConfigurePrimaryHttpMessageHandler(sp => CreateHandlerWithCaCert(
+        llmConfig.CaCertPath,
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger("LlmClient")));
+
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddScoped<ILdapService, LdapService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
