@@ -7,6 +7,8 @@ interface OrgChartNode {
   username: string;
   fullName: string;
   title: string;
+  sector: string;
+  directorate: string;
   department: string;
   distinguishedName: string;
   isActiveUser: boolean;
@@ -52,11 +54,16 @@ const OrgNode: React.FC<{
         <p className={`text-[8px] font-black uppercase tracking-widest truncate ${isActive ? 'text-blue-100' : 'text-slate-500'}`}>
           {node.title || '—'}
         </p>
-        {node.department && (
-          <p className={`text-[7px] font-bold tracking-wide mt-0.5 truncate ${isActive ? 'text-blue-200' : 'text-slate-600'}`}>
-            {node.department}
-          </p>
-        )}
+        {(() => {
+          const infoClass = `text-[7px] font-bold tracking-wide mt-0.5 truncate ${isActive ? 'text-blue-200' : 'text-slate-600'}`;
+          return (
+            <>
+              {node.department && <p className={infoClass}>{node.department}</p>}
+              {node.directorate && <p className={infoClass}>{node.directorate}</p>}
+              {node.sector && <p className={infoClass}>{node.sector}</p>}
+            </>
+          );
+        })()}
       </div>
     </div>
   </div>
