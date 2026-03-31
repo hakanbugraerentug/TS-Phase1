@@ -60,9 +60,21 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
 
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
   const aiReportUrl = (import.meta.env.VITE_AI_REPORT_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+  const getWeekStart = (): string => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diff);
+    return monday.toISOString().split('T')[0];
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -76,6 +88,20 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
         const projects = projectsRes.ok ? await projectsRes.json() : [];
         setAllComments(comments);
         setAllProjects(projects);
+
+        // Load saved report for the current week
+        const weekStart = getWeekStart();
+        const savedReportRes = await fetch(
+          `${apiUrl}/api/weekly-reports?weekStart=${weekStart}`,
+          { headers: { Authorization: `Bearer ${user.accessToken}` } }
+        );
+        if (savedReportRes.ok) {
+          const savedReport = await savedReportRes.json();
+          if (savedReport.reportData) {
+            setReportData(savedReport.reportData);
+            setIsSaved(true);
+          }
+        }
       } finally {
         setIsLoading(false);
       }
@@ -86,6 +112,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
   const generateReport = async () => {
     setIsGenerating(true);
     setGenerateError(null);
+    setIsSaved(false);
     try {
       // Determine sub-users (members of teams where current user is leader)
       const teamsRes = await fetch(`${apiUrl}/api/teams`, {
@@ -144,6 +171,69 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     }
   };
 
+  const saveReport = async () => {
+    if (!reportData) return;
+    setIsSaving(true);
+    try {
+      const response = await fetch(`${apiUrl}/api/weekly-reports`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.accessToken}`,
+        },
+        body: JSON.stringify({
+          weekStart: getWeekStart(),
+          reportData: reportData,
+        }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setIsSaved(true);
+    } catch (err) {
+      console.error('Rapor kaydedilemedi:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleBulletEdit = (lineIdx: number, level: number, itemIdx: number, newText: string) => {
+    if (!reportData) return;
+
+    const fieldKey = `bullet${level}` as keyof BulletLine;
+
+    const newBulletLines = reportData.bullet_lines.map((line, li) => {
+      if (li !== lineIdx) return line;
+      const arr = (line[fieldKey] as string[] | null) ?? [];
+      const newArr = arr.map((t, ti) => ti === itemIdx ? newText : t);
+      return { ...line, [fieldKey]: newArr };
+    });
+
+    const oldLine = reportData.bullet_lines[lineIdx];
+    const oldArr = (oldLine[fieldKey] as string[] | null) ?? [];
+    const oldText = oldArr[itemIdx] ?? '';
+
+    const bulletField = `bullet${level}`;
+    const newTraceability = reportData.traceability.map(entry => {
+      if (entry.bullet_field === bulletField && entry.text === oldText) {
+        return { ...entry, text: newText, sources: ['MANUALLY_WRITTEN'] };
+      }
+      return entry;
+    });
+
+    const newSourceMap = {
+      ...reportData.source_map,
+      MANUALLY_WRITTEN: {
+        commentId: 'MANUALLY_WRITTEN',
+        date: '',
+        username: 'Manually Written',
+        projectName: '',
+        userComment: 'Bu alan manuel olarak düzenlenmiştir.'
+      }
+    };
+
+    setReportData({ ...reportData, bullet_lines: newBulletLines, traceability: newTraceability, source_map: newSourceMap });
+    setIsSaved(false);
+  };
+
   const traceabilityMap = useMemo((): Map<string, AiReportComment[]> => {
     const map = new Map<string, AiReportComment[]>();
     if (!reportData) return map;
@@ -157,7 +247,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     return traceabilityMap.get(text) ?? [];
   };
 
-  const renderBulletItem = (text: string, level: number, bulletKey: string): React.ReactNode => {
+  const renderBulletItem = (text: string, level: number, bulletKey: string, lineIdx: number, itemIdx: number): React.ReactNode => {
     const sources = getSourceComments(text);
     const marker = BULLET_MARKER[level] ?? '•';
     const color = BULLET_COLOR[level] ?? 'text-slate-200';
@@ -172,7 +262,17 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
         >
           <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-white/5 transition-all cursor-default">
             <span className="text-blue-500 mt-1">{marker}</span>
-            <span className={`${color} text-sm italic leading-relaxed flex-1`}>{text}</span>
+            {isEditMode ? (
+              <textarea
+                key={text}
+                defaultValue={text}
+                onBlur={(e) => handleBulletEdit(lineIdx, level, itemIdx, e.target.value)}
+                className="bg-slate-900/60 border border-blue-500/30 rounded-xl text-white text-sm italic p-2 w-full resize-none outline-none focus:border-blue-400/60"
+                rows={2}
+              />
+            ) : (
+              <span className={`${color} text-sm italic leading-relaxed flex-1`}>{text}</span>
+            )}
             {sources.length > 0 && (
               <span className="text-[8px] font-black text-blue-500/40 uppercase tracking-widest self-center opacity-0 group-hover/bullet:opacity-100 transition-opacity">
                 {sources.length} kaynak
@@ -216,9 +316,9 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
             <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">======</span>
           </div>
         )}
-        {line.bullet1?.map((text, i) => renderBulletItem(text, 1, `line-${lineIdx}-b1-${i}`))}
-        {line.bullet2?.map((text, i) => renderBulletItem(text, 2, `line-${lineIdx}-b2-${i}`))}
-        {line.bullet3?.map((text, i) => renderBulletItem(text, 3, `line-${lineIdx}-b3-${i}`))}
+        {line.bullet1?.map((text, i) => renderBulletItem(text, 1, `line-${lineIdx}-b1-${i}`, lineIdx, i))}
+        {line.bullet2?.map((text, i) => renderBulletItem(text, 2, `line-${lineIdx}-b2-${i}`, lineIdx, i))}
+        {line.bullet3?.map((text, i) => renderBulletItem(text, 3, `line-${lineIdx}-b3-${i}`, lineIdx, i))}
       </div>
     ));
   };
@@ -334,6 +434,22 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
                 </button>
                 <button className="w-full py-4 bg-white/5 hover:bg-white/10 text-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-white/5">
                   PDF Olarak Dışa Aktar
+                </button>
+                {/* Düzenle Butonu */}
+                <button
+                  onClick={() => { setIsEditMode(prev => !prev); }}
+                  disabled={!reportData}
+                  className="w-full py-4 bg-slate-700/50 hover:bg-slate-600/50 disabled:opacity-40 text-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-white/10 active:scale-95"
+                >
+                  {isEditMode ? '✅ Düzenlemeyi Bitir' : '✏️ Düzenle'}
+                </button>
+                {/* Kaydet Butonu */}
+                <button
+                  onClick={saveReport}
+                  disabled={isSaving || !reportData}
+                  className="w-full py-4 bg-emerald-600/80 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/20 active:scale-95"
+                >
+                  {isSaving ? 'Kaydediliyor...' : isSaved ? '✅ Kaydedildi' : '💾 Kaydet'}
                 </button>
               </div>
             </div>

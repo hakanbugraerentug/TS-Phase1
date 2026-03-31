@@ -90,6 +90,7 @@ builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ITeamRepository, TeamRepository>();
 builder.Services.AddScoped<IVlmImageService, VlmImageService>();
 builder.Services.AddScoped<IPlaceholderImageService, PlaceholderImageService>();
+builder.Services.AddScoped<IWeeklyReportRepository, WeeklyReportRepository>();
 
 // Register services - Application Layer
 builder.Services.AddScoped<IAuthService, AuthService>();
