@@ -63,6 +63,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
   const aiReportUrl = (import.meta.env.VITE_AI_REPORT_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
@@ -192,6 +193,39 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
       console.error('Rapor kaydedilemedi:', err);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDownloadDocx = async () => {
+    if (!reportData) return;
+    setIsDownloading(true);
+    setGenerateError(null);
+    try {
+      const response = await fetch(`${aiReportUrl}/generate_docx`, {
+        method: 'POST',
+        headers: {
+          'accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ bullet_lines: reportData.bullet_lines }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'haftalik_rapor.docx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setGenerateError(`Docx indirilemedi: ${msg}`);
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -432,8 +466,12 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
                 >
                   {isGenerating ? 'Üretiliyor...' : '✨ AI Generate Etsin'}
                 </button>
-                <button className="w-full py-4 bg-white/5 hover:bg-white/10 text-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-white/5">
-                  PDF Olarak Dışa Aktar
+                <button
+                  onClick={handleDownloadDocx}
+                  disabled={isDownloading || !reportData}
+                  className="w-full py-4 bg-white/5 hover:bg-white/10 disabled:opacity-40 text-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-white/5 active:scale-95"
+                >
+                  {isDownloading ? 'İndiriliyor...' : 'Docx İndir'}
                 </button>
                 {/* Düzenle Butonu */}
                 <button
