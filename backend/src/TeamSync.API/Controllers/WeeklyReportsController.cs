@@ -46,6 +46,36 @@ public class WeeklyReportsController : ControllerBase
         });
     }
 
+    [HttpGet("by-user")]
+    public async Task<IActionResult> GetByUser([FromQuery] string username, [FromQuery] string weekStart)
+    {
+        var requestingUser = User.Identity?.Name;
+        if (string.IsNullOrEmpty(requestingUser))
+            return Unauthorized();
+
+        if (string.IsNullOrEmpty(username))
+            return BadRequest("username is required.");
+
+        if (string.IsNullOrEmpty(weekStart) || !System.Text.RegularExpressions.Regex.IsMatch(weekStart, @"^\d{4}-\d{2}-\d{2}$"))
+            return BadRequest("weekStart must be a valid date in YYYY-MM-DD format.");
+
+        var report = await _repo.GetByUsernameAndWeekAsync(username, weekStart);
+        if (report == null) return NotFound();
+
+        var reportDataJson = report.ReportData != null
+            ? BsonTypeMapper.MapToDotNetValue(report.ReportData)
+            : null;
+
+        return Ok(new WeeklyReportDto
+        {
+            Id = report.Id,
+            Username = report.Username,
+            WeekStart = report.WeekStart,
+            ReportData = reportDataJson,
+            SavedAt = report.SavedAt
+        });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Save([FromBody] SaveWeeklyReportRequest request)
     {
