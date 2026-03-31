@@ -56,4 +56,24 @@ public class UsersController : ControllerBase
             return NotFound(new { message = "Org chart not found" });
         return Ok(result);
     }
+
+    /// <summary>
+    /// Tüm kullanıcıları org chart için döner (username, fullName, title, department, sector, directorate, distinguishedName, manager)
+    /// </summary>
+    [HttpGet("all-org")]
+    public async Task<IActionResult> GetAllForOrgChart()
+    {
+        var users = await _userRepository.GetAllAsync();
+        var result = users.Select(u => new {
+            username = u.Username,
+            fullName = u.FullName,
+            title = u.Title,
+            department = u.Department,
+            sector = u.Sector,
+            directorate = u.Directorate,
+            distinguishedName = u.DistinguishedName,
+            manager = u.Manager
+        });
+        return Ok(result);
+    }
 }
