@@ -304,6 +304,109 @@ def route_after_validation(state: GraphState) -> Literal["repair_report", "__end
 
 
 # ══════════════════════════════════════════════════════════
+# MANAGER REPORT MERGE (Müdür ve üstü için)
+# ══════════════════════════════════════════════════════════
+
+def _merge_conflicting_bullets(
+    project: str,
+    bullets: List[Dict[str, Any]],
+    custom_prompt: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Birden fazla ekip liderinin aynı proje için ürettiği bullet'ları
+    LLM kullanarak tek bir özette birleştirir.
+    """
+    base_system = """Sen kurumsal haftalık rapor asistanısın.
+
+Birden fazla ekip liderinin aynı proje için hazırladığı haftalık rapor
+bullet'larını tek bir raporda birleştirmekle görevlisin.
+
+Görevin:
+- bullet2 listelerini tek bir özet bullet2 listesine dönüştür (tamamlanan işler)
+- bullet3 listelerini tek bir özet bullet3 listesine dönüştür (takip maddeleri)
+- Tekrarları kaldır, benzer maddeleri birleştir
+- bullet0: projeyi köşeli parantez içinde yaz, ör. [Atlas CRM]
+- bullet1: genellikle ["Genel"] kullan
+
+Kurallar:
+- Çıktı dili Türkçe olmalıdır.
+- Maddeleri kısa, resmi ve rapor diline uygun tut.
+- Kullanıcı adı yazma.
+- Tarih yazma.
+- Tekrardan kaçın."""
+
+    if custom_prompt:
+        system_prompt = f"{base_system}\n\nEk talimatlar:\n{custom_prompt}"
+    else:
+        system_prompt = base_system
+
+    user_prompt = (
+        f"Proje: {project}\n\n"
+        f"Birleştirilecek bullet'lar:\n"
+        f"{json.dumps(bullets, ensure_ascii=False, indent=2)}"
+    )
+
+    llm = _get_llm(temperature=0.1)
+    structured_llm = llm.with_structured_output(ProjectBulletOutput)
+
+    result: ProjectBulletOutput = structured_llm.invoke([
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_prompt),
+    ])
+
+    parsed = result.model_dump()
+    parsed["bullet0"] = project
+    parsed["bullet1"] = normalize_string_list(parsed.get("bullet1")) or ["Genel"]
+    parsed["bullet2"] = normalize_string_list(parsed.get("bullet2"))
+    parsed["bullet3"] = normalize_string_list(parsed.get("bullet3"))
+
+    return parsed
+
+
+def merge_subordinate_reports(
+    reports: List[Dict[str, Any]],
+    custom_prompt: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Müdür ve üstü yöneticiler için: astların (ekip liderlerinin) bullet_lines
+    listelerini alır, proje bazında gruplar ve birleştirir.
+
+    - Aynı isimde olmayan projeler doğrudan birleştirilir.
+    - Aynı proje adına sahip birden fazla bullet varsa LLM ile özetlenir.
+    """
+    # Group bullet_lines by project name (bullet0)
+    project_bullets: Dict[str, List[Dict[str, Any]]] = {}
+
+    for report in reports:
+        for bullet_line in report.get("bullet_lines", []):
+            project = (bullet_line.get("bullet0") or "").strip()
+            if not project:
+                continue
+            project_bullets.setdefault(project, []).append(bullet_line)
+
+    merged_bullet_lines: List[Dict[str, Any]] = []
+
+    for project, bullets in project_bullets.items():
+        if len(bullets) == 1:
+            # No conflict — keep as-is
+            merged_bullet_lines.append(bullets[0])
+        else:
+            # Conflict — merge with LLM
+            merged = _merge_conflicting_bullets(project, bullets, custom_prompt)
+            merged_bullet_lines.append(merged)
+
+    return {
+        "title": "HAFTALIK GENEL RAPOR",
+        "instructions": [
+            "Bilgi girişi olduğu takdirde \u201c(Bir bilgi girilmemiştir.)\u201d ifadesi silinmelidir."
+        ],
+        "bullet_lines": merged_bullet_lines,
+        "traceability": [],
+        "source_map": {},
+    }
+
+
+# ══════════════════════════════════════════════════════════
 # BUILD GRAPH
 # ══════════════════════════════════════════════════════════
 def build_graph() -> Any:

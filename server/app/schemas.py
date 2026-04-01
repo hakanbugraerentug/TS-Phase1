@@ -64,3 +64,19 @@ class GenerateReportResponse(BaseModel):
 # ── Docx Request ─────────────────────────────────────────
 class GenerateDocxRequest(BaseModel):
     bullet_lines: List[BulletLine]
+
+
+# ── Manager Merge Request ─────────────────────────────────
+class SubordinateReport(BaseModel):
+    username: str = Field(description="Ekip liderinin kullanıcı adı")
+    bullet_lines: List[BulletLine]
+
+
+class MergeReportsRequest(BaseModel):
+    subordinate_reports: List[SubordinateReport] = Field(
+        description="Birleştirilecek astların raporları"
+    )
+    prompt: Optional[str] = Field(
+        default=None,
+        description="Opsiyonel ek talimat. Verilirse LLM system prompt'una eklenir.",
+    )
