@@ -219,6 +219,11 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
     return found?.fullName || username;
   };
 
+  const getBirimInputValue = (i: number, b: Birim): string => {
+    if (birimDropdowns[i]?.open) return birimDropdowns[i]?.query ?? '';
+    return b.sorumluKullanici ? getUserFullName(b.sorumluKullanici) : '';
+  };
+
   const filteredUsersForBirim = (query: string) => {
     if (!query.trim()) return allUsers.slice(0, 8);
     const q = query.toLowerCase();
@@ -411,7 +416,7 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
                         <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Birim Sorumlusu</label>
                         <div className="relative">
                           <input
-                            value={birimDropdowns[i]?.query ?? (b.sorumluKullanici ? getUserFullName(b.sorumluKullanici) : '')}
+                            value={getBirimInputValue(i, b)}
                             onChange={e => {
                               setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { open: true, query: e.target.value } : d));
                               if (!e.target.value) updateBirim(i, 'sorumluKullanici', '');

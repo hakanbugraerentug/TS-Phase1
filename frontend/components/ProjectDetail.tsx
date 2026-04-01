@@ -51,6 +51,7 @@ export const ProjectDetail: React.FC<{
   const [allTeams, setAllTeams] = useState<TeamInfo[]>([]);
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [detailsLoaded, setDetailsLoaded] = useState(false);
 
   // Birim user search dropdowns
@@ -171,8 +172,14 @@ export const ProjectDetail: React.FC<{
   const updateBirim = (i: number, field: keyof Birim, value: string) =>
     setBirimler(prev => prev.map((b, idx) => idx === i ? { ...b, [field]: value } : b));
 
+  const getBirimInputValue = (i: number, b: Birim): string => {
+    if (birimDropdowns[i]?.open) return birimDropdowns[i]?.query ?? '';
+    return b.sorumluKullanici ? getUserFullName(b.sorumluKullanici) : '';
+  };
+
   const handleSaveDetails = async () => {
     setIsSavingDetails(true);
+    setSaveSuccess(false);
     try {
       const response = await fetch(`${apiUrl}/api/projects/${projectId}/details`, {
         method: 'PATCH',
@@ -185,7 +192,10 @@ export const ProjectDetail: React.FC<{
           ilgiliEkipIdleri
         })
       });
-      if (!response.ok) {
+      if (response.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
         const errData = await response.json().catch(() => ({}));
         alert(errData.message || 'Detaylar kaydedilemedi.');
       }
@@ -412,7 +422,7 @@ export const ProjectDetail: React.FC<{
                         <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Birim Sorumlusu</label>
                         <div className="relative">
                           <input
-                            value={birimDropdowns[i]?.open ? (birimDropdowns[i]?.query ?? '') : (b.sorumluKullanici ? getUserFullName(b.sorumluKullanici) : '')}
+                            value={getBirimInputValue(i, b)}
                             onChange={e => {
                               setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { open: true, query: e.target.value } : d));
                               if (!e.target.value) updateBirim(i, 'sorumluKullanici', '');
@@ -520,7 +530,13 @@ export const ProjectDetail: React.FC<{
               </div>
 
               {/* Save Button */}
-              <div className="flex justify-end pb-4">
+              <div className="flex justify-end items-center gap-4 pb-4">
+                {saveSuccess && (
+                  <span className="text-[9px] font-black text-green-400 uppercase tracking-widest flex items-center gap-1.5 animate-in fade-in duration-300">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                    Kaydedildi
+                  </span>
+                )}
                 <button
                   onClick={handleSaveDetails}
                   disabled={isSavingDetails}
