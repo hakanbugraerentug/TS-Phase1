@@ -23,4 +23,19 @@ public class WeeklyReport
 
     [BsonElement("savedAt")]
     public DateTime SavedAt { get; set; }
+
+    [BsonElement("author")]
+    public string Author { get; set; } = string.Empty;
+
+    [BsonElement("date")]
+    public DateTime Date { get; set; }
+
+    [BsonElement("reviewer")]
+    public string Reviewer { get; set; } = string.Empty;
+
+    [BsonElement("readyToReview")]
+    public bool ReadyToReview { get; set; } = false;
+
+    [BsonElement("status")]
+    public string Status { get; set; } = string.Empty;
 }

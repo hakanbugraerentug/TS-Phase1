@@ -42,7 +42,11 @@ public class WeeklyReportsController : ControllerBase
             Username = report.Username,
             WeekStart = report.WeekStart,
             ReportData = reportDataJson,
-            SavedAt = report.SavedAt
+            SavedAt = report.SavedAt,
+            Author = report.Author,
+            Reviewer = report.Reviewer,
+            ReadyToReview = report.ReadyToReview,
+            Status = report.Status
         });
     }
 
@@ -72,7 +76,11 @@ public class WeeklyReportsController : ControllerBase
             Username = report.Username,
             WeekStart = report.WeekStart,
             ReportData = reportDataJson,
-            SavedAt = report.SavedAt
+            SavedAt = report.SavedAt,
+            Author = report.Author,
+            Reviewer = report.Reviewer,
+            ReadyToReview = report.ReadyToReview,
+            Status = report.Status
         });
     }
 
@@ -102,7 +110,12 @@ public class WeeklyReportsController : ControllerBase
             Username = username,
             WeekStart = request.WeekStart,
             ReportData = bsonDoc,
-            SavedAt = DateTime.UtcNow
+            SavedAt = DateTime.UtcNow,
+            Author = username,
+            Date = DateTime.UtcNow,
+            Reviewer = request.Reviewer,
+            ReadyToReview = request.ReadyToReview,
+            Status = request.Status
         };
 
         var saved = await _repo.UpsertAsync(report);
@@ -112,7 +125,86 @@ public class WeeklyReportsController : ControllerBase
             Id = saved.Id,
             Username = saved.Username,
             WeekStart = saved.WeekStart,
-            SavedAt = saved.SavedAt
+            SavedAt = saved.SavedAt,
+            Author = saved.Author,
+            Reviewer = saved.Reviewer,
+            ReadyToReview = saved.ReadyToReview,
+            Status = saved.Status
         });
+    }
+
+    [HttpPatch("submit")]
+    public async Task<IActionResult> Submit([FromBody] SubmitWeeklyReportRequest request)
+    {
+        var username = User.Identity?.Name;
+        if (string.IsNullOrEmpty(username))
+            return Unauthorized();
+
+        if (string.IsNullOrEmpty(request.WeekStart) || !System.Text.RegularExpressions.Regex.IsMatch(request.WeekStart, @"^\d{4}-\d{2}-\d{2}$"))
+            return BadRequest("weekStart must be a valid date in YYYY-MM-DD format.");
+
+        try
+        {
+            var updated = await _repo.UpdateReadyToReviewAsync(username, request.WeekStart, true);
+            return Ok(new WeeklyReportDto
+            {
+                Id = updated.Id,
+                Username = updated.Username,
+                WeekStart = updated.WeekStart,
+                SavedAt = updated.SavedAt,
+                Author = updated.Author,
+                Reviewer = updated.Reviewer,
+                ReadyToReview = updated.ReadyToReview,
+                Status = updated.Status
+            });
+        }
+        catch (InvalidOperationException)
+        {
+            return NotFound("Report not found for the given week.");
+        }
+    }
+
+    [HttpGet("inbox")]
+    public async Task<IActionResult> Inbox()
+    {
+        var username = User.Identity?.Name;
+        if (string.IsNullOrEmpty(username))
+            return Unauthorized();
+
+        var reports = await _repo.GetReadyToReviewByReviewerAsync(username);
+        var dtos = reports.Select(r => new WeeklyReportDto
+        {
+            Id = r.Id,
+            Username = r.Username,
+            WeekStart = r.WeekStart,
+            SavedAt = r.SavedAt,
+            Author = r.Author,
+            Reviewer = r.Reviewer,
+            ReadyToReview = r.ReadyToReview,
+            Status = r.Status
+        });
+        return Ok(dtos);
+    }
+
+    [HttpGet("all-for-reviewer")]
+    public async Task<IActionResult> AllForReviewer()
+    {
+        var username = User.Identity?.Name;
+        if (string.IsNullOrEmpty(username))
+            return Unauthorized();
+
+        var reports = await _repo.GetByReviewerAsync(username);
+        var dtos = reports.Select(r => new WeeklyReportDto
+        {
+            Id = r.Id,
+            Username = r.Username,
+            WeekStart = r.WeekStart,
+            SavedAt = r.SavedAt,
+            Author = r.Author,
+            Reviewer = r.Reviewer,
+            ReadyToReview = r.ReadyToReview,
+            Status = r.Status
+        });
+        return Ok(dtos);
     }
 }

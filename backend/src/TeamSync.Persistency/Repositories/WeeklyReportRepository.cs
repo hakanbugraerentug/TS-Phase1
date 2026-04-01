@@ -38,4 +38,34 @@ public class WeeklyReportRepository : IWeeklyReportRepository
         return await _collection.FindOneAndReplaceAsync(filter, report, options)
                ?? report;
     }
+
+    public async Task<WeeklyReport> UpdateReadyToReviewAsync(string username, string weekStart, bool readyToReview)
+    {
+        var filter = Builders<WeeklyReport>.Filter.And(
+            Builders<WeeklyReport>.Filter.Eq(r => r.Username, username),
+            Builders<WeeklyReport>.Filter.Eq(r => r.WeekStart, weekStart)
+        );
+        var update = Builders<WeeklyReport>.Update.Set(r => r.ReadyToReview, readyToReview);
+        var options = new FindOneAndUpdateOptions<WeeklyReport>
+        {
+            ReturnDocument = ReturnDocument.After
+        };
+        return await _collection.FindOneAndUpdateAsync(filter, update, options)
+               ?? throw new InvalidOperationException("Report not found.");
+    }
+
+    public async Task<List<WeeklyReport>> GetByReviewerAsync(string reviewerUsername)
+    {
+        var filter = Builders<WeeklyReport>.Filter.Eq(r => r.Reviewer, reviewerUsername);
+        return await _collection.Find(filter).ToListAsync();
+    }
+
+    public async Task<List<WeeklyReport>> GetReadyToReviewByReviewerAsync(string reviewerUsername)
+    {
+        var filter = Builders<WeeklyReport>.Filter.And(
+            Builders<WeeklyReport>.Filter.Eq(r => r.Reviewer, reviewerUsername),
+            Builders<WeeklyReport>.Filter.Eq(r => r.ReadyToReview, true)
+        );
+        return await _collection.Find(filter).ToListAsync();
+    }
 }

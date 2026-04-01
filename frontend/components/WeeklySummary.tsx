@@ -64,6 +64,9 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [reportStatus, setReportStatus] = useState<'manuel' | 'generated' | null>(null);
 
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
   const aiReportUrl = (import.meta.env.VITE_AI_REPORT_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
@@ -101,6 +104,12 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
           if (savedReport.reportData) {
             setReportData(savedReport.reportData);
             setIsSaved(true);
+          }
+          if (savedReport.readyToReview) {
+            setIsSubmitted(true);
+          }
+          if (savedReport.status) {
+            setReportStatus(savedReport.status as 'manuel' | 'generated');
           }
         }
       } finally {
@@ -164,6 +173,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
 
       const data: AiReportResponse = await response.json();
       setReportData(data);
+      setReportStatus('generated');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setGenerateError(`Rapor oluşturulamadı: ${msg}`);
@@ -176,6 +186,20 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     if (!reportData) return;
     setIsSaving(true);
     try {
+      // Fetch manager (reviewer) from org-chart
+      let reviewerUsername = '';
+      try {
+        const orgRes = await fetch(`${apiUrl}/api/users/${user.username}/org-chart`, {
+          headers: { Authorization: `Bearer ${user.accessToken}` },
+        });
+        if (orgRes.ok) {
+          const orgData = await orgRes.json();
+          reviewerUsername = orgData?.manager?.username ?? '';
+        }
+      } catch {
+        // proceed without reviewer if fetch fails
+      }
+
       const response = await fetch(`${apiUrl}/api/weekly-reports`, {
         method: 'POST',
         headers: {
@@ -185,6 +209,10 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
         body: JSON.stringify({
           weekStart: getWeekStart(),
           reportData: reportData,
+          author: user.username,
+          reviewer: reviewerUsername,
+          readyToReview: false,
+          status: reportStatus ?? 'generated',
         }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -193,6 +221,26 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
       console.error('Rapor kaydedilemedi:', err);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const submitToManager = async () => {
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${apiUrl}/api/weekly-reports/submit`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.accessToken}`,
+        },
+        body: JSON.stringify({ weekStart: getWeekStart() }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setIsSubmitted(true);
+    } catch (err) {
+      console.error('Yöneticiye gönderilemedi:', err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -475,7 +523,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
                 </button>
                 {/* Düzenle Butonu */}
                 <button
-                  onClick={() => { setIsEditMode(prev => !prev); }}
+                  onClick={() => { setIsEditMode(prev => !prev); if (!isEditMode) setReportStatus('manuel'); }}
                   disabled={!reportData}
                   className="w-full py-4 bg-slate-700/50 hover:bg-slate-600/50 disabled:opacity-40 text-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border border-white/10 active:scale-95"
                 >
@@ -488,6 +536,14 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
                   className="w-full py-4 bg-emerald-600/80 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-emerald-600/20 active:scale-95"
                 >
                   {isSaving ? 'Kaydediliyor...' : isSaved ? '✅ Kaydedildi' : '💾 Kaydet'}
+                </button>
+                {/* Yöneticime Gönder Butonu */}
+                <button
+                  onClick={submitToManager}
+                  disabled={isSubmitting || !isSaved}
+                  className="w-full py-4 bg-purple-600/80 hover:bg-purple-500 disabled:opacity-40 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl active:scale-95"
+                >
+                  {isSubmitting ? 'Gönderiliyor...' : isSubmitted ? '✅ Yöneticiye Gönderildi' : '📤 Yöneticime Gönder'}
                 </button>
               </div>
             </div>

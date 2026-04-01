@@ -10,6 +10,18 @@ public class SaveWeeklyReportRequest
 
     [JsonPropertyName("reportData")]
     public JsonElement ReportData { get; set; }
+
+    [JsonPropertyName("author")]
+    public string Author { get; set; } = string.Empty;
+
+    [JsonPropertyName("reviewer")]
+    public string Reviewer { get; set; } = string.Empty;
+
+    [JsonPropertyName("readyToReview")]
+    public bool ReadyToReview { get; set; } = false;
+
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = string.Empty;
 }
 
 public class WeeklyReportDto
@@ -28,4 +40,22 @@ public class WeeklyReportDto
 
     [JsonPropertyName("savedAt")]
     public DateTime SavedAt { get; set; }
+
+    [JsonPropertyName("author")]
+    public string Author { get; set; } = string.Empty;
+
+    [JsonPropertyName("reviewer")]
+    public string Reviewer { get; set; } = string.Empty;
+
+    [JsonPropertyName("readyToReview")]
+    public bool ReadyToReview { get; set; } = false;
+
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = string.Empty;
+}
+
+public class SubmitWeeklyReportRequest
+{
+    [JsonPropertyName("weekStart")]
+    public string WeekStart { get; set; } = string.Empty;
 }
