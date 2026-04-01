@@ -8,12 +8,6 @@ interface Slide {
   description: string;
 }
 
-const isManager = (title: string): boolean => {
-  if (!title) return false;
-  const lower = title.toLowerCase();
-  return lower.includes('müdür') || lower.includes('direktör') || lower.includes('sektör başkanı');
-};
-
 // Buraya kendi slayt içeriklerinizi ekleyebilirsiniz
 const managerSlides: Slide[] = [
   {
@@ -76,17 +70,15 @@ interface HowToUseProps {
 export const HowToUse: React.FC<HowToUseProps> = ({ user }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
-
-  const slides = isManager(user.title) ? managerSlides : personnelSlides;
+  const [activeSlides, setActiveSlides] = useState<Slide[]>(managerSlides);
 
   const handlePrev = () => setCurrentSlide(prev => Math.max(0, prev - 1));
-  const handleNext = () => setCurrentSlide(prev => Math.min(slides.length - 1, prev + 1));
-  const handleOpen = () => { setIsOpen(true); setCurrentSlide(0); };
+  const handleNext = () => setCurrentSlide(prev => Math.min(activeSlides.length - 1, prev + 1));
   const handleClose = () => setIsOpen(false);
 
-  const slide = slides[currentSlide];
+  const slide = activeSlides[currentSlide];
   const isFirst = currentSlide === 0;
-  const isLast = currentSlide === slides.length - 1;
+  const isLast = currentSlide === activeSlides.length - 1;
 
   return (
     <>
@@ -100,19 +92,32 @@ export const HowToUse: React.FC<HowToUseProps> = ({ user }) => {
         <div className="text-center">
           <h2 className="text-2xl font-black tracking-tight text-slate-100 mb-2">Nasıl Kullanılır</h2>
           <p className="text-slate-400 text-sm font-black uppercase tracking-widest">
-            {isManager(user.title) ? 'Yönetici Sunumu' : 'Personel Sunumu'}
+            Rolünüzü seçin ve sunumu başlatın
           </p>
         </div>
-        <button
-          onClick={handleOpen}
-          className="flex items-center gap-3 px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm uppercase tracking-widest rounded-2xl transition-all duration-300 shadow-lg border border-blue-500/50"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Sunumu Başlat
-        </button>
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Yönetici sunumu — managerSlides'ı açar */}
+          <button
+            onClick={() => { setActiveSlides(managerSlides); setIsOpen(true); setCurrentSlide(0); }}
+            className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white font-black text-sm uppercase tracking-widest rounded-2xl transition-all duration-300 shadow-lg border border-yellow-400/30"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+            </svg>
+            Yöneticiyim Rolündeyim
+          </button>
+
+          {/* Mühendis/personel sunumu — personnelSlides'ı açar */}
+          <button
+            onClick={() => { setActiveSlides(personnelSlides); setIsOpen(true); setCurrentSlide(0); }}
+            className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black text-sm uppercase tracking-widest rounded-2xl transition-all duration-300 shadow-lg border border-blue-500/30"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+            Mühendis Rolündeyim
+          </button>
+        </div>
       </div>
 
       {/* Modal */}
@@ -151,7 +156,7 @@ export const HowToUse: React.FC<HowToUseProps> = ({ user }) => {
               )}
               {/* Slayt sayacı */}
               <div className="absolute bottom-3 right-5 bg-black/40 backdrop-blur-sm rounded-full px-3 py-1 text-white text-[10px] font-black uppercase tracking-widest">
-                {currentSlide + 1} / {slides.length}
+                {currentSlide + 1} / {activeSlides.length}
               </div>
             </div>
 
@@ -167,7 +172,7 @@ export const HowToUse: React.FC<HowToUseProps> = ({ user }) => {
 
             {/* Dot indicator */}
             <div className="flex justify-center gap-2 pb-4">
-              {slides.map((_, idx) => (
+              {activeSlides.map((_, idx) => (
                 <button
                   key={idx}
                   onClick={() => setCurrentSlide(idx)}
