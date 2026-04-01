@@ -130,21 +130,25 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
       if (!teamsRes.ok) {
         throw new Error(`Takım verisi alınamadı: HTTP ${teamsRes.status}`);
       }
-      const teams: { leader: string; members: string[] }[] = await teamsRes.json();
+      const teams: { leader: string; members: string[]; projectId?: string }[] = await teamsRes.json();
 
       const subMembers: string[] = [];
+      const teamProjectIds = new Set<string>();
       for (const team of teams) {
         if (team.leader === user.username) {
           subMembers.push(...team.members);
+          if (team.projectId) teamProjectIds.add(team.projectId);
         }
       }
       const targetUsers = [...new Set([user.username, ...subMembers])];
 
-      // Filter comments from the last 7 days for target users
+      // Filter comments from the last 7 days for target users in the leader's team projects
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       const recentComments = allComments.filter(c =>
-        targetUsers.includes(c.username) && new Date(c.date) >= oneWeekAgo
+        targetUsers.includes(c.username) &&
+        new Date(c.date) >= oneWeekAgo &&
+        (teamProjectIds.size === 0 || teamProjectIds.has(c.projectId))
       );
 
       // Map projectId to projectName and build AI request payload

@@ -67,7 +67,7 @@ export const ProjectDetail: React.FC<{
         body: JSON.stringify({
           projectId: projectId,
           text: newComment,
-          author: user.name
+          author: user.username
         })
       });
 
