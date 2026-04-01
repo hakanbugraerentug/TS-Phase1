@@ -1,6 +1,6 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../App';
+import { UserAvatar } from './UserAvatar';
 
 interface Comment {
   id: string;
@@ -10,15 +10,52 @@ interface Comment {
   date: string;
 }
 
+interface Birim {
+  birimTipi: string;
+  birimAdi: string;
+  sorumluKullanici: string;
+}
+
+interface TeamInfo {
+  id: string;
+  title: string;
+  leader: string;
+  members: string[];
+}
+
+interface AppUser {
+  username: string;
+  fullName: string;
+}
+
+const UNIT_TYPES = ['Yazılım', 'Donanım', 'Mekanik', 'Sistem'];
+
+type DetailTab = 'comments' | 'details';
+
 export const ProjectDetail: React.FC<{
   projectId: string;
   projectTitle: string;
   onBack: () => void;
   user: User;
 }> = ({ projectId, projectTitle, onBack, user }) => {
+  const [activeTab, setActiveTab] = useState<DetailTab>('comments');
+
+  // Comments tab
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Details tab
+  const [birimler, setBirimler] = useState<Birim[]>([]);
+  const [ilgiliEkipIdleri, setIlgiliEkipIdleri] = useState<string[]>([]);
+  const [allTeams, setAllTeams] = useState<TeamInfo[]>([]);
+  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [detailsLoaded, setDetailsLoaded] = useState(false);
+
+  // Birim user search dropdowns
+  const [birimDropdowns, setBirimDropdowns] = useState<{ open: boolean; query: string }[]>([]);
+  const birimDropdownRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
@@ -46,16 +83,122 @@ export const ProjectDetail: React.FC<{
     }
   };
 
+  const fetchProjectDetails = async () => {
+    try {
+      const [projectRes, teamsRes, usersRes] = await Promise.all([
+        fetch(`${apiUrl}/api/projects/${projectId}`, {
+          headers: { 'Authorization': `Bearer ${user.accessToken}` }
+        }),
+        fetch(`${apiUrl}/api/teams`, {
+          headers: { 'Authorization': `Bearer ${user.accessToken}` }
+        }),
+        fetch(`${apiUrl}/api/users`, {
+          headers: { 'Authorization': `Bearer ${user.accessToken}` }
+        })
+      ]);
+      if (projectRes.ok) {
+        const proj = await projectRes.json();
+        setBirimler((proj.birimler || []).map((b: any) => ({
+          birimTipi: b.birimTipi || 'Yazılım',
+          birimAdi: b.birimAdi || '',
+          sorumluKullanici: b.sorumluKullanici || ''
+        })));
+        setBirimDropdowns((proj.birimler || []).map(() => ({ open: false, query: '' })));
+        setIlgiliEkipIdleri(proj.ilgiliEkipIdleri || []);
+      }
+      if (teamsRes.ok) {
+        const teamsData = await teamsRes.json();
+        setAllTeams((teamsData || []).map((t: any) => ({
+          id: t.id, title: t.title, leader: t.leader, members: t.members || []
+        })));
+      }
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        setAllUsers((usersData || []).map((u: any) => ({
+          username: u.username ?? u.Username ?? '',
+          fullName: u.fullName ?? u.FullName ?? ''
+        })));
+      }
+      setDetailsLoaded(true);
+    } catch (err) {
+      console.error('Proje detayları yüklenemedi:', err);
+    }
+  };
+
   useEffect(() => {
     if (projectId) {
       fetchComments();
+      fetchProjectDetails();
     }
   }, [projectId, user.accessToken]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      birimDropdownRefs.current.forEach((ref, i) => {
+        if (ref && !ref.contains(e.target as Node)) {
+          setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { ...d, open: false } : d));
+        }
+      });
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getUserFullName = (username: string) => {
+    const found = allUsers.find(u => u.username === username);
+    return found?.fullName || username;
+  };
+
+  const filteredUsersForBirim = (query: string) => {
+    if (!query.trim()) return allUsers.slice(0, 8);
+    const q = query.toLowerCase();
+    return allUsers.filter(u =>
+      u.username.toLowerCase().includes(q) || u.fullName.toLowerCase().includes(q)
+    ).slice(0, 8);
+  };
+
+  const addBirim = () => {
+    setBirimler(prev => [...prev, { birimTipi: 'Yazılım', birimAdi: '', sorumluKullanici: '' }]);
+    setBirimDropdowns(prev => [...prev, { open: false, query: '' }]);
+  };
+
+  const removeBirim = (i: number) => {
+    setBirimler(prev => prev.filter((_, idx) => idx !== i));
+    setBirimDropdowns(prev => prev.filter((_, idx) => idx !== i));
+    birimDropdownRefs.current = birimDropdownRefs.current.filter((_, idx) => idx !== i);
+  };
+
+  const updateBirim = (i: number, field: keyof Birim, value: string) =>
+    setBirimler(prev => prev.map((b, idx) => idx === i ? { ...b, [field]: value } : b));
+
+  const handleSaveDetails = async () => {
+    setIsSavingDetails(true);
+    try {
+      const response = await fetch(`${apiUrl}/api/projects/${projectId}/details`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.accessToken}`
+        },
+        body: JSON.stringify({
+          birimler: birimler.filter(b => b.birimAdi.trim()),
+          ilgiliEkipIdleri
+        })
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        alert(errData.message || 'Detaylar kaydedilemedi.');
+      }
+    } catch (err) {
+      console.error('Detaylar kaydedilemedi:', err);
+    } finally {
+      setIsSavingDetails(false);
+    }
+  };
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
-
     setIsSubmitting(true);
     try {
       const response = await fetch(`${apiUrl}/api/comments`, {
@@ -70,7 +213,6 @@ export const ProjectDetail: React.FC<{
           author: user.username
         })
       });
-
       if (response.ok) {
         setNewComment('');
         await fetchComments();
@@ -97,7 +239,7 @@ export const ProjectDetail: React.FC<{
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-700">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-5">
           <button onClick={onBack} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-xl hover:bg-white/10 transition-all text-slate-400">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -106,78 +248,291 @@ export const ProjectDetail: React.FC<{
           </button>
           <div>
             <h2 className="text-2xl font-black text-white italic tracking-tighter">{projectTitle}</h2>
-            <p className="text-[8px] font-black text-blue-500/60 uppercase tracking-[0.3em] mt-1">Yorumlar & Tartışmalar</p>
+            <p className="text-[8px] font-black text-blue-500/60 uppercase tracking-[0.3em] mt-1">Proje Detayları</p>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden flex flex-col gap-6 h-[calc(100vh-220px)] animate-in fade-in duration-500">
-        {/* Comments List */}
-        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
-          {comments.map((comment) => (
-            <div key={comment.id} className="group bg-[#1e293b]/30 backdrop-blur-md rounded-3xl p-6 border border-white/5 hover:border-blue-500/20 transition-all">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-slate-800 flex items-center justify-center font-black text-blue-400 border border-white/5 shadow-inner">
-                    {comment.author.charAt(0)}
+      {/* Tab Navigation */}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => setActiveTab('comments')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+            activeTab === 'comments'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+              : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          Yorumlar
+          {comments.length > 0 && (
+            <span className="bg-white/20 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">{comments.length}</span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('details')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+            activeTab === 'details'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+              : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          Birimler &amp; Ekipler
+        </button>
+      </div>
+
+      {/* COMMENTS TAB */}
+      {activeTab === 'comments' && (
+        <div className="flex-1 overflow-hidden flex flex-col gap-6 h-[calc(100vh-280px)]">
+          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
+            {comments.map((comment) => (
+              <div key={comment.id} className="group bg-[#1e293b]/30 backdrop-blur-md rounded-3xl p-6 border border-white/5 hover:border-blue-500/20 transition-all">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-slate-800 flex items-center justify-center font-black text-blue-400 border border-white/5 shadow-inner">
+                      {comment.author.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-white italic">{comment.author}</p>
+                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Personel</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-black text-white italic">{comment.author}</p>
-                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Personel</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black text-slate-600 bg-black/20 px-3 py-1 rounded-full">{comment.date}</span>
+                    {comment.rawAuthor === user.username && (
+                      <button
+                        onClick={() => handleDeleteComment(comment.id)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-400"
+                        title="Yorumu sil"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black text-slate-600 bg-black/20 px-3 py-1 rounded-full">{comment.date}</span>
-                  {comment.rawAuthor === user.username && (
-                    <button
-                      onClick={() => handleDeleteComment(comment.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 flex items-center justify-center rounded-lg bg-red-500/10 hover:bg-red-500/30 text-red-400"
-                      title="Yorumu sil"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  )}
+                <p className="text-slate-300 text-sm italic leading-relaxed border-l-2 border-blue-600/30 pl-4">
+                  {comment.text}
+                </p>
+              </div>
+            ))}
+            {comments.length === 0 && (
+              <div className="h-full flex flex-col items-center justify-center opacity-20">
+                <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <p className="text-[10px] font-black uppercase tracking-widest">Henüz yorum yapılmamış</p>
+              </div>
+            )}
+          </div>
+
+          {/* New Comment Form */}
+          <div className="bg-[#0f172a] rounded-3xl border border-white/10 p-6 shadow-2xl flex-shrink-0">
+            <form onSubmit={handleAddComment} className="flex gap-4">
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Ekibe bir not bırakın veya soru sorun..."
+                className="flex-1 bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-4 text-white text-sm outline-none focus:border-blue-500/50 transition-all resize-none italic h-16"
+              />
+              <button
+                type="submit"
+                disabled={!newComment.trim() || isSubmitting}
+                className="px-8 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95 flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+                Gönder
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DETAILS TAB: Birimler & Ekipler */}
+      {activeTab === 'details' && (
+        <div className="flex-1 overflow-y-auto space-y-8 pr-1">
+          {!detailsLoaded ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin"></div>
+            </div>
+          ) : (
+            <>
+              {/* Birimler Section */}
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-sm font-black text-white italic">Proje Birimleri</h3>
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-0.5">Yazılım / Donanım / Mekanik / Sistem</p>
+                  </div>
+                </div>
+
+                {birimler.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-8 opacity-40 border border-dashed border-white/10 rounded-2xl mb-4">
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Henüz birim tanımlanmamış</p>
+                  </div>
+                )}
+
+                <div className="space-y-3 mb-4">
+                  {birimler.map((b, i) => (
+                    <div key={i} className="bg-[#1e293b]/50 border border-white/5 rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Birim {i + 1}</span>
+                        <button type="button" onClick={() => removeBirim(i)} className="text-red-400 hover:text-red-300 text-xs font-black px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-all">Sil</button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Birim Tipi</label>
+                          <select
+                            value={b.birimTipi}
+                            onChange={e => updateBirim(i, 'birimTipi', e.target.value)}
+                            className="w-full bg-slate-900/70 border border-white/5 rounded-xl px-3 py-2.5 text-white text-xs font-bold outline-none focus:border-blue-500/50 transition-all"
+                          >
+                            {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Birim Adı</label>
+                          <input
+                            value={b.birimAdi}
+                            onChange={e => updateBirim(i, 'birimAdi', e.target.value)}
+                            placeholder="Ör: Gömülü Yazılım"
+                            className="w-full bg-slate-900/70 border border-white/5 rounded-xl px-3 py-2.5 text-white text-xs font-bold outline-none focus:border-blue-500/50 transition-all"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1" ref={el => { birimDropdownRefs.current[i] = el; }}>
+                        <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Birim Sorumlusu</label>
+                        <div className="relative">
+                          <input
+                            value={birimDropdowns[i]?.open ? (birimDropdowns[i]?.query ?? '') : (b.sorumluKullanici ? getUserFullName(b.sorumluKullanici) : '')}
+                            onChange={e => {
+                              setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { open: true, query: e.target.value } : d));
+                              if (!e.target.value) updateBirim(i, 'sorumluKullanici', '');
+                            }}
+                            onFocus={() => setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { ...d, open: true } : d))}
+                            placeholder="Kullanıcı ara..."
+                            className="w-full bg-slate-900/70 border border-white/5 rounded-xl px-3 py-2.5 text-white text-xs font-bold outline-none focus:border-blue-500/50 transition-all pr-24"
+                          />
+                          {b.sorumluKullanici && !birimDropdowns[i]?.open && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                              <span className="text-[8px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{b.sorumluKullanici}</span>
+                            </div>
+                          )}
+                          {birimDropdowns[i]?.open && filteredUsersForBirim(birimDropdowns[i]?.query ?? '').length > 0 && (
+                            <ul className="absolute z-20 left-0 right-0 mt-1 bg-[#1e293b] border border-white/10 rounded-2xl shadow-2xl max-h-44 overflow-y-auto">
+                              {filteredUsersForBirim(birimDropdowns[i]?.query ?? '').map(u => (
+                                <li
+                                  key={u.username}
+                                  onMouseDown={() => {
+                                    updateBirim(i, 'sorumluKullanici', u.username);
+                                    setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { open: false, query: '' } : d));
+                                  }}
+                                  className="px-4 py-2.5 flex items-center gap-3 cursor-pointer hover:bg-blue-600/20 transition-colors"
+                                >
+                                  <UserAvatar username={u.username} displayName={u.fullName || u.username} accessToken={user.accessToken} size="sm" />
+                                  <div>
+                                    <p className="text-white font-bold text-xs">{u.fullName || u.username}</p>
+                                    <p className="text-slate-500 text-[9px]">{u.username}</p>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        {b.sorumluKullanici && (
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <UserAvatar username={b.sorumluKullanici} displayName={getUserFullName(b.sorumluKullanici)} accessToken={user.accessToken} size="sm" />
+                            <span className="text-xs text-slate-300 font-bold italic">{getUserFullName(b.sorumluKullanici)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addBirim}
+                  className="flex items-center gap-2 text-[9px] font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest transition-colors px-4 py-2.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20"
+                >
+                  <span className="text-sm leading-none">+</span> Birim Ekle
+                </button>
+              </div>
+
+              {/* Teams Section */}
+              <div>
+                <div className="mb-4">
+                  <h3 className="text-sm font-black text-white italic">İlgili Ekipler</h3>
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-0.5">Projeyle ilişkili ekipler</p>
+                </div>
+
+                {allTeams.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-8 opacity-40">
+                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Henüz ekip bulunmuyor.</p>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  {allTeams.map(team => {
+                    const isChecked = ilgiliEkipIdleri.includes(team.id);
+                    return (
+                      <label
+                        key={team.id}
+                        className={`flex items-center gap-4 cursor-pointer p-4 rounded-2xl border transition-all ${
+                          isChecked ? 'bg-blue-600/15 border-blue-500/40' : 'bg-[#1e293b]/30 border-white/5 hover:border-white/10'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={e => {
+                            if (e.target.checked) setIlgiliEkipIdleri(prev => [...prev, team.id]);
+                            else setIlgiliEkipIdleri(prev => prev.filter(id => id !== team.id));
+                          }}
+                          className="accent-blue-500 w-4 h-4 flex-shrink-0"
+                        />
+                        <div className="relative flex-shrink-0">
+                          <UserAvatar username={team.leader} displayName={getUserFullName(team.leader)} accessToken={user.accessToken} size="md" />
+                          <span className="absolute -bottom-1 -right-1 text-[8px] leading-none">👑</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-black text-sm italic">{team.title}</p>
+                          <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mt-0.5">Lider: {getUserFullName(team.leader)}</p>
+                          <p className="text-slate-600 text-[8px] mt-0.5">{team.members.length} üye</p>
+                        </div>
+                        {isChecked && (
+                          <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                          </div>
+                        )}
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
-              <p className="text-slate-300 text-sm italic leading-relaxed border-l-2 border-blue-600/30 pl-4">
-                {comment.text}
-              </p>
-            </div>
-          ))}
-          {comments.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center opacity-20">
-              <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <p className="text-[10px] font-black uppercase tracking-widest">Henüz yorum yapılmamış</p>
-            </div>
+
+              {/* Save Button */}
+              <div className="flex justify-end pb-4">
+                <button
+                  onClick={handleSaveDetails}
+                  disabled={isSavingDetails}
+                  className="px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-blue-600/20 transition-all disabled:opacity-50"
+                >
+                  {isSavingDetails ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}
+                </button>
+              </div>
+            </>
           )}
         </div>
-
-        {/* New Comment Form */}
-        <div className="bg-[#0f172a] rounded-3xl border border-white/10 p-6 shadow-2xl">
-          <form onSubmit={handleAddComment} className="flex gap-4">
-            <textarea 
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Ekibe bir not bırakın veya soru sorun..."
-              className="flex-1 bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-4 text-white text-sm outline-none focus:border-blue-500/50 transition-all resize-none italic h-16"
-            />
-            <button 
-              type="submit"
-              disabled={!newComment.trim() || isSubmitting}
-              className="px-8 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl shadow-blue-600/20 active:scale-95 flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-              Gönder
-            </button>
-          </form>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
