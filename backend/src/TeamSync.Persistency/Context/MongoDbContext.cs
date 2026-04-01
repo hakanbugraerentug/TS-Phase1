@@ -20,4 +20,5 @@ public class MongoDbContext
     public IMongoCollection<Comment> Comments => _database.GetCollection<Comment>(Comment.CollectionName);
     public IMongoCollection<Team> Teams => _database.GetCollection<Team>(Team.CollectionName);
     public IMongoCollection<User> Users => _database.GetCollection<User>(User.CollectionName);
+    public IMongoCollection<Delegation> Delegations => _database.GetCollection<Delegation>(Delegation.CollectionName);
 }

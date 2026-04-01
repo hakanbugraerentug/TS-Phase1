@@ -13,10 +13,12 @@ namespace TeamSync.API.Controllers;
 public class WeeklyReportsController : ControllerBase
 {
     private readonly IWeeklyReportRepository _repo;
+    private readonly IDelegationRepository _delegationRepo;
 
-    public WeeklyReportsController(IWeeklyReportRepository repo)
+    public WeeklyReportsController(IWeeklyReportRepository repo, IDelegationRepository delegationRepo)
     {
         _repo = repo;
+        _delegationRepo = delegationRepo;
     }
 
     [HttpGet]
@@ -171,8 +173,18 @@ public class WeeklyReportsController : ControllerBase
         if (string.IsNullOrEmpty(username))
             return Unauthorized();
 
+        // Collect reports for this user as reviewer
         var reports = await _repo.GetReadyToReviewByReviewerAsync(username);
-        var dtos = reports.Select(r => new WeeklyReportDto
+
+        // Also collect reports for users who have delegated to this user
+        var delegations = await _delegationRepo.GetActiveDelegationsForDelegateAsync(username);
+        foreach (var delegation in delegations)
+        {
+            var delegatedReports = await _repo.GetReadyToReviewByReviewerAsync(delegation.DelegatorUsername);
+            reports.AddRange(delegatedReports);
+        }
+
+        var dtos = reports.DistinctBy(r => r.Id).Select(r => new WeeklyReportDto
         {
             Id = r.Id,
             Username = r.Username,
@@ -193,8 +205,18 @@ public class WeeklyReportsController : ControllerBase
         if (string.IsNullOrEmpty(username))
             return Unauthorized();
 
+        // Collect reports for this user as reviewer
         var reports = await _repo.GetByReviewerAsync(username);
-        var dtos = reports.Select(r => new WeeklyReportDto
+
+        // Also collect reports for users who have delegated to this user
+        var delegations = await _delegationRepo.GetActiveDelegationsForDelegateAsync(username);
+        foreach (var delegation in delegations)
+        {
+            var delegatedReports = await _repo.GetByReviewerAsync(delegation.DelegatorUsername);
+            reports.AddRange(delegatedReports);
+        }
+
+        var dtos = reports.DistinctBy(r => r.Id).Select(r => new WeeklyReportDto
         {
             Id = r.Id,
             Username = r.Username,

@@ -2,6 +2,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User } from '../App';
 import { UserAvatar } from './UserAvatar';
+import { DelegationModal } from './DelegationModal';
+
+interface DelegationDto {
+  id: string;
+  delegatorUsername: string;
+  delegateUsername: string;
+  durationType: string;
+  expiresAt: string | null;
+  createdAt: string;
+  isActive: boolean;
+}
+
+const DURATION_LABEL: Record<string, string> = {
+  '1_gun': '1 Gün',
+  '1_hafta': '1 Hafta',
+  'suresiz': 'Süresiz',
+};
 
 interface OrgUser {
   username: string;
@@ -139,6 +156,37 @@ export const ManagerPanel: React.FC<{ user: User }> = ({ user }) => {
   const [modalReport, setModalReport] = useState<{ username: string; reportData: AiReportResponse } | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [showDelegationModal, setShowDelegationModal] = useState(false);
+  const [activeDelegations, setActiveDelegations] = useState<DelegationDto[]>([]);
+
+  const fetchDelegations = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiUrl}/api/delegations/by-me`, {
+        headers: { Authorization: `Bearer ${user.accessToken}` },
+      });
+      if (res.ok) {
+        const all: DelegationDto[] = await res.json();
+        const now = new Date();
+        setActiveDelegations(
+          all.filter(d => d.isActive && (!d.expiresAt || new Date(d.expiresAt) > now))
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }, [apiUrl, user.accessToken]);
+
+  const revokeDelegate = async (id: string) => {
+    try {
+      await fetch(`${apiUrl}/api/delegations/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${user.accessToken}` },
+      });
+      await fetchDelegations();
+    } catch {
+      // ignore
+    }
+  };
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -158,7 +206,7 @@ export const ManagerPanel: React.FC<{ user: User }> = ({ user }) => {
     }
   }, [apiUrl, user.accessToken]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchData(); fetchDelegations(); }, [fetchData, fetchDelegations]);
 
   if (!managerRole) {
     return (
@@ -234,8 +282,51 @@ export const ManagerPanel: React.FC<{ user: User }> = ({ user }) => {
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
+
+          <button
+            onClick={() => setShowDelegationModal(true)}
+            className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-900/40 transition-all active:scale-95 border border-blue-400/30"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            Delege Et
+          </button>
         </div>
       </div>
+
+      {/* Active Delegations */}
+      {activeDelegations.length > 0 && (
+        <div className="mb-8 bg-blue-600/5 border border-blue-500/20 rounded-2xl p-6">
+          <h3 className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4">Aktif Delegeler</h3>
+          <div className="flex flex-wrap gap-3">
+            {activeDelegations.map(d => (
+              <div
+                key={d.id}
+                className="flex items-center gap-3 bg-[#0f172a] border border-blue-500/20 rounded-xl px-4 py-2"
+              >
+                <UserAvatar username={d.delegateUsername} displayName={d.delegateUsername} accessToken={user.accessToken} size="sm" />
+                <div>
+                  <p className="text-xs font-black text-white">{d.delegateUsername}</p>
+                  <p className="text-[9px] text-blue-400 font-bold uppercase tracking-widest">
+                    {DURATION_LABEL[d.durationType] || d.durationType}
+                    {d.expiresAt ? ` · ${new Date(d.expiresAt).toLocaleDateString('tr-TR')}` : ''}
+                  </p>
+                </div>
+                <button
+                  onClick={() => revokeDelegate(d.id)}
+                  className="ml-2 text-slate-600 hover:text-red-400 transition-colors"
+                  title="Delegeyi Kaldır"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-3 gap-6 mb-10">
@@ -334,6 +425,15 @@ export const ManagerPanel: React.FC<{ user: User }> = ({ user }) => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Delegation Modal */}
+      {showDelegationModal && (
+        <DelegationModal
+          user={user}
+          onClose={() => setShowDelegationModal(false)}
+          onSuccess={fetchDelegations}
+        />
       )}
     </div>
   );
