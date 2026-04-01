@@ -11,6 +11,7 @@ export interface User {
   username: string;
   employeeId: string;
   accessToken: string;
+  title: string;
 }
 
 const App: React.FC = () => {
@@ -23,7 +24,8 @@ const App: React.FC = () => {
       role: 'Personel', // Tüm kullanıcılar personel modunda başlar
       username: userData.user.username,
       employeeId: userData.user.employee_id,
-      accessToken: userData.access_token
+      accessToken: userData.access_token,
+      title: userData.user.title ?? ''
     };
 
     setUser(formattedUser);
