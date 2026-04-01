@@ -201,18 +201,15 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
 
   const handleRemoveMember = async (team: Team, memberUsername: string) => {
     if (!window.confirm(`${getUserFullName(memberUsername)} adlı üyeyi ekipten çıkarmak istediğinize emin misiniz?`)) return;
-    const newMembers = team.members.filter(m => m !== memberUsername);
     try {
-      const response = await fetch(`${apiUrl}/api/teams/${team.id}`, {
-        method: 'PATCH',
+      const response = await fetch(`${apiUrl}/api/teams/${team.id}/members/${memberUsername}`, {
+        method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${user.accessToken}`
-        },
-        body: JSON.stringify({ members: newMembers })
+        }
       });
       if (response.ok) {
-        const updated = { ...team, members: newMembers };
+        const updated = await response.json();
         setSelectedTeam(updated);
         setTeams(prev => prev.map(t => t.id === team.id ? updated : t));
       }
@@ -222,18 +219,17 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
   };
 
   const handleAddMember = async (team: Team, memberUsername: string) => {
-    const newMembers = [...(team.members || []), memberUsername];
     try {
-      const response = await fetch(`${apiUrl}/api/teams/${team.id}`, {
-        method: 'PATCH',
+      const response = await fetch(`${apiUrl}/api/teams/${team.id}/members`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${user.accessToken}`
         },
-        body: JSON.stringify({ members: newMembers })
+        body: JSON.stringify({ username: memberUsername })
       });
       if (response.ok) {
-        const updated = { ...team, members: newMembers };
+        const updated = await response.json();
         setSelectedTeam(updated);
         setTeams(prev => prev.map(t => t.id === team.id ? updated : t));
         setAddMemberInput('');
@@ -247,16 +243,16 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
   const handleTransferLeadership = async (team: Team, newLeaderUsername: string) => {
     if (!window.confirm(`Liderliği ${getUserFullName(newLeaderUsername)} adlı üyeye devretmek istediğinize emin misiniz?`)) return;
     try {
-      const response = await fetch(`${apiUrl}/api/teams/${team.id}`, {
-        method: 'PATCH',
+      const response = await fetch(`${apiUrl}/api/teams/${team.id}/leader`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${user.accessToken}`
         },
-        body: JSON.stringify({ leader: newLeaderUsername })
+        body: JSON.stringify({ leaderUsername: newLeaderUsername })
       });
       if (response.ok) {
-        const updated = { ...team, leader: newLeaderUsername };
+        const updated = await response.json();
         setSelectedTeam(updated);
         setTeams(prev => prev.map(t => t.id === team.id ? updated : t));
       }
@@ -268,15 +264,12 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
   const handleLeaveTeam = async (team: Team) => {
     if (!window.confirm('Bu ekipten ayrılmak istediğinize emin misiniz?')) return;
     if (!window.confirm('Bu işlemi geri alamazsınız. Ekipten ayrılmak istediğinize gerçekten emin misiniz?')) return;
-    const newMembers = team.members.filter(m => m !== user.username);
     try {
-      const response = await fetch(`${apiUrl}/api/teams/${team.id}`, {
-        method: 'PATCH',
+      const response = await fetch(`${apiUrl}/api/teams/${team.id}/members/${user.username}`, {
+        method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${user.accessToken}`
-        },
-        body: JSON.stringify({ members: newMembers })
+        }
       });
       if (response.ok) {
         setSelectedTeam(null);
