@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TeamSync.Application.CQRS.Project.Commands.CreateProject;
 using TeamSync.Application.CQRS.Project.Commands.UpdateProject;
+using TeamSync.Application.CQRS.Project.Commands.UpdateProjectDetails;
 using TeamSync.Application.CQRS.Project.Commands.DeleteProject;
 using TeamSync.Application.CQRS.Project.Queries.GetAllProjects;
 using TeamSync.Application.CQRS.Project.Queries.GetProjectById;
@@ -17,6 +18,7 @@ public class ProjectsController : ControllerBase
 {
     private readonly CreateProjectCommandHandler _createProjectHandler;
     private readonly UpdateProjectCommandHandler _updateProjectHandler;
+    private readonly UpdateProjectDetailsCommandHandler _updateProjectDetailsHandler;
     private readonly DeleteProjectCommandHandler _deleteProjectHandler;
     private readonly GetAllProjectsQueryHandler _getAllProjectsHandler;
     private readonly GetProjectByIdQueryHandler _getProjectByIdHandler;
@@ -25,6 +27,7 @@ public class ProjectsController : ControllerBase
     public ProjectsController(
         CreateProjectCommandHandler createProjectHandler,
         UpdateProjectCommandHandler updateProjectHandler,
+        UpdateProjectDetailsCommandHandler updateProjectDetailsHandler,
         DeleteProjectCommandHandler deleteProjectHandler,
         GetAllProjectsQueryHandler getAllProjectsHandler,
         GetProjectByIdQueryHandler getProjectByIdHandler,
@@ -32,6 +35,7 @@ public class ProjectsController : ControllerBase
     {
         _createProjectHandler = createProjectHandler;
         _updateProjectHandler = updateProjectHandler;
+        _updateProjectDetailsHandler = updateProjectDetailsHandler;
         _deleteProjectHandler = deleteProjectHandler;
         _getAllProjectsHandler = getAllProjectsHandler;
         _getProjectByIdHandler = getProjectByIdHandler;
@@ -95,6 +99,27 @@ public class ProjectsController : ControllerBase
         }
 
         return Ok(result);
+    }
+
+    [HttpPatch("{id}/details")]
+    public async Task<ActionResult<ProjectDto>> UpdateDetails(string id, [FromBody] UpdateProjectDetailsRequest request)
+    {
+        try
+        {
+            var command = new UpdateProjectDetailsCommand { Id = id, Request = request };
+            var result = await _updateProjectDetailsHandler.Handle(command);
+
+            if (result == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpDelete("{id}")]

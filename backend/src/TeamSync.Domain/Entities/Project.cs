@@ -12,6 +12,18 @@ public class Sorumlu
     public string Isim { get; set; } = string.Empty;
 }
 
+public class Birim
+{
+    [BsonElement("birimTipi")]
+    public string BirimTipi { get; set; } = string.Empty;
+
+    [BsonElement("birimAdi")]
+    public string BirimAdi { get; set; } = string.Empty;
+
+    [BsonElement("sorumluKullanici")]
+    public string SorumluKullanici { get; set; } = string.Empty;
+}
+
 [BsonIgnoreExtraElements]
 public class Project
 {
@@ -36,9 +48,30 @@ public class Project
     [BsonElement("sorumlular")]
     public List<Sorumlu> Sorumlular { get; set; } = new();
 
+    [BsonElement("birimler")]
+    public List<Birim> Birimler { get; set; } = new();
+
     [BsonElement("ilgili_ekip_idleri")]
     public List<string> IlgiliEkipIdleri { get; set; } = new();
 
     [BsonElement("card_image")]
     public string? CardImage { get; set; }
+
+    [BsonElement("baslamaTarihi")]
+    public string? BaslamaTarihi { get; set; }
+
+    [BsonElement("bitisTarihi")]
+    public string? BitisTarihi { get; set; }
+
+    [BsonElement("otomatikPipeline")]
+    public bool OtomatikPipeline { get; set; }
+
+    [BsonElement("outsource")]
+    public bool Outsource { get; set; }
+
+    [BsonElement("wikiLinki")]
+    public string? WikiLinki { get; set; }
+
+    [BsonElement("tfsLinki")]
+    public string? TfsLinki { get; set; }
 }

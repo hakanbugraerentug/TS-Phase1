@@ -68,8 +68,20 @@ public class CreateProjectCommandHandler
                 Etiket = s.Etiket.Trim(),
                 Isim = s.Isim.Trim()
             }).ToList(),
+            Birimler = command.Request.Birimler.Select(b => new Domain.Entities.Birim
+            {
+                BirimTipi = b.BirimTipi.Trim(),
+                BirimAdi = b.BirimAdi.Trim(),
+                SorumluKullanici = b.SorumluKullanici.Trim()
+            }).ToList(),
             IlgiliEkipIdleri = command.Request.IlgiliEkipIdleri,
-            CardImage = cardImage
+            CardImage = cardImage,
+            BaslamaTarihi = command.Request.BaslamaTarihi,
+            BitisTarihi = command.Request.BitisTarihi,
+            OtomatikPipeline = command.Request.OtomatikPipeline,
+            Outsource = command.Request.Outsource,
+            WikiLinki = command.Request.WikiLinki,
+            TfsLinki = command.Request.TfsLinki
         };
 
         var createdProject = await _projectRepository.CreateAsync(project);

@@ -1,11 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../App';
 import { UserAvatar } from './UserAvatar';
 
 interface Sorumlu {
   etiket: string;
   isim: string;
+}
+
+interface Birim {
+  birimTipi: string;
+  birimAdi: string;
+  sorumluKullanici: string;
 }
 
 interface Project {
@@ -15,14 +21,22 @@ interface Project {
   owner: string;
   members: string[];
   sorumlular?: Sorumlu[];
+  birimler?: Birim[];
   ilgiliEkipIdleri?: string[];
   cardImage?: string;
-  image?: string; // backward compat
+  image?: string;
 }
 
 interface TeamOption {
   id: string;
   title: string;
+  leader: string;
+  members: string[];
+}
+
+interface AppUser {
+  username: string;
+  fullName: string;
 }
 
 interface ProjectsProps {
@@ -30,6 +44,8 @@ interface ProjectsProps {
   onSelectProject: (id: string, title: string) => void;
   user: User;
 }
+
+const UNIT_TYPES = ['Yazılım', 'Donanım', 'Mekanik', 'Sistem'];
 
 // Görsel havuzu
 const IMAGE_POOL = [
@@ -44,17 +60,34 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Modal State
+
+  // Modal / wizard state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDescription, setNewDescription] = useState('');
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Sorumlular & Ekipler
-  const [sorumlular, setSorumlular] = useState<{etiket: string; isim: string}[]>([]);
-  const [ilgiliEkipIdleri, setIlgiliEkipIdleri] = useState<string[]>([]);
+  // Step 1: Basic info
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+
+  // Step 2: Birimler
+  const [birimler, setBirimler] = useState<Birim[]>([]);
+  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
+  const [birimDropdowns, setBirimDropdowns] = useState<{ open: boolean; query: string }[]>([]);
+  const birimDropdownRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Step 3: Teams
   const [availableTeams, setAvailableTeams] = useState<TeamOption[]>([]);
+  const [ilgiliEkipIdleri, setIlgiliEkipIdleri] = useState<string[]>([]);
+
+  // Step 4: Dates & extras
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [baslamaTarihi, setBaslamaTarihi] = useState(todayStr);
+  const [bitisTarihi, setBitisTarihi] = useState('');
+  const [otomatikPipeline, setOtomatikPipeline] = useState(false);
+  const [outsource, setOutsource] = useState(false);
+  const [wikiLinki, setWikiLinki] = useState('');
+  const [tfsLinki, setTfsLinki] = useState('');
 
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
@@ -95,10 +128,35 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
       });
       if (teamsRes.ok) {
         const teamsData = await teamsRes.json();
-        setAvailableTeams((teamsData || []).map((t: any) => ({ id: t.id, title: t.title })));
+        // Only show teams where user is member or a subordinate is team leader
+        setAvailableTeams((teamsData || []).map((t: any) => ({
+          id: t.id,
+          title: t.title,
+          leader: t.leader,
+          members: t.members || []
+        })));
       }
     } catch {
       setAvailableTeams([]);
+    }
+  };
+
+  const fetchAllUsers = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/users`, {
+        headers: { 'Authorization': `Bearer ${user.accessToken}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAllUsers(
+          (data || []).map((u: any) => ({
+            username: u.username ?? u.Username ?? '',
+            fullName: u.fullName ?? u.FullName ?? ''
+          }))
+        );
+      }
+    } catch {
+      setAllUsers([]);
     }
   };
 
@@ -106,41 +164,76 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
     fetchProjects();
   }, [user.accessToken]);
 
+  // Close birim dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      birimDropdownRefs.current.forEach((ref, i) => {
+        if (ref && !ref.contains(e.target as Node)) {
+          setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { ...d, open: false } : d));
+        }
+      });
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const openModal = () => {
     fetchTeams();
+    fetchAllUsers();
     setIsModalOpen(true);
+    setWizardStep(1);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setNewTitle('');
     setNewDescription('');
-    setSorumlular([]);
+    setBirimler([]);
+    setBirimDropdowns([]);
     setIlgiliEkipIdleri([]);
+    setBaslamaTarihi(todayStr);
+    setBitisTarihi('');
+    setOtomatikPipeline(false);
+    setOutsource(false);
+    setWikiLinki('');
+    setTfsLinki('');
+    setWizardStep(1);
   };
 
-  const addSorumlu = () => setSorumlular(prev => [...prev, { etiket: '', isim: '' }]);
-  const removeSorumlu = (i: number) => setSorumlular(prev => prev.filter((_, idx) => idx !== i));
-  const updateSorumlu = (i: number, field: 'etiket' | 'isim', value: string) =>
-    setSorumlular(prev => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s));
+  const addBirim = () => {
+    setBirimler(prev => [...prev, { birimTipi: 'Yazılım', birimAdi: '', sorumluKullanici: '' }]);
+    setBirimDropdowns(prev => [...prev, { open: false, query: '' }]);
+  };
 
-  const handleCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const removeBirim = (i: number) => {
+    setBirimler(prev => prev.filter((_, idx) => idx !== i));
+    setBirimDropdowns(prev => prev.filter((_, idx) => idx !== i));
+    birimDropdownRefs.current = birimDropdownRefs.current.filter((_, idx) => idx !== i);
+  };
+
+  const updateBirim = (i: number, field: keyof Birim, value: string) =>
+    setBirimler(prev => prev.map((b, idx) => idx === i ? { ...b, [field]: value } : b));
+
+  const getUserFullName = (username: string) => {
+    const found = allUsers.find(u => u.username === username);
+    return found?.fullName || username;
+  };
+
+  const getBirimInputValue = (i: number, b: Birim): string => {
+    if (birimDropdowns[i]?.open) return birimDropdowns[i]?.query ?? '';
+    return b.sorumluKullanici ? getUserFullName(b.sorumluKullanici) : '';
+  };
+
+  const filteredUsersForBirim = (query: string) => {
+    if (!query.trim()) return allUsers.slice(0, 8);
+    const q = query.toLowerCase();
+    return allUsers.filter(u =>
+      u.username.toLowerCase().includes(q) || u.fullName.toLowerCase().includes(q)
+    ).slice(0, 8);
+  };
+
+  const handleCreateProject = async () => {
     if (!newTitle.trim()) return;
-
-    // Client-side validation
-    for (const s of sorumlular) {
-      const etiket = s.etiket.trim();
-      const isim = s.isim.trim();
-      if (etiket && (etiket.length < 2 || etiket.length > 60)) {
-        alert('Sorumlu etiketi 2-60 karakter arasında olmalıdır.');
-        return;
-      }
-      if (isim && (isim.length < 2 || isim.length > 60)) {
-        alert('Sorumlu ismi 2-60 karakter arasında olmalıdır.');
-        return;
-      }
-    }
 
     setIsCreating(true);
     try {
@@ -155,8 +248,15 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
           description: newDescription,
           owner: user.username,
           members: [user.username],
-          sorumlular: sorumlular.filter(s => s.etiket.trim() && s.isim.trim()),
-          ilgiliEkipIdleri: ilgiliEkipIdleri
+          sorumlular: [],
+          birimler: birimler.filter(b => b.birimAdi.trim()),
+          ilgiliEkipIdleri,
+          baslamaTarihi: baslamaTarihi || null,
+          bitisTarihi: bitisTarihi || null,
+          otomatikPipeline,
+          outsource,
+          wikiLinki: wikiLinki || null,
+          tfsLinki: tfsLinki || null
         })
       });
 
@@ -173,6 +273,8 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
       setIsCreating(false);
     }
   };
+
+  const stepLabels = ['Temel Bilgiler', 'Birimler', 'Ekipler', 'Tarih & Detaylar'];
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -195,113 +297,342 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
         </button>
       </div>
 
-      {/* Modal / Pop-up */}
+      {/* 4-Step Wizard Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-black/70 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-[#1e293b] border border-white/10 w-full max-w-xl rounded-[3rem] shadow-[0_40px_100px_-15px_rgba(0,0,0,0.8)] overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
-            <div className="p-10">
-              <div className="flex justify-between items-center mb-10">
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-[#1e293b] border border-white/10 w-full max-w-2xl rounded-[3rem] shadow-[0_40px_100px_-15px_rgba(0,0,0,0.8)] overflow-hidden animate-in zoom-in-95 duration-300 max-h-[92vh] flex flex-col">
+            {/* Header */}
+            <div className="p-8 pb-0 flex-shrink-0">
+              <div className="flex justify-between items-center mb-6">
                 <div>
-                   <h3 className="text-2xl font-black text-white italic tracking-tight">Proje Tanımlama</h3>
-                   <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] mt-1">Yeni İnisiyatif Kaydı</p>
+                  <h3 className="text-2xl font-black text-white italic tracking-tight">Proje Tanımlama</h3>
+                  <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.3em] mt-1">Yeni İnisiyatif Kaydı</p>
                 </div>
-                <button onClick={closeModal} className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-white transition-colors">
+                <button onClick={closeModal} className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/5 text-slate-400 hover:text-white transition-colors flex-shrink-0">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
 
-              <form onSubmit={handleCreateProject} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Proje Başlığı</label>
-                  <input 
-                    required
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="Örn: Mobil Kredi Akış Modernizasyonu"
-                    className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-5 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all"
-                  />
-                </div>
+              {/* Step indicator */}
+              <div className="flex items-center gap-2 mb-6">
+                {stepLabels.map((label, idx) => {
+                  const stepNum = (idx + 1) as 1 | 2 | 3 | 4;
+                  const isActive = wizardStep === stepNum;
+                  const isDone = wizardStep > stepNum;
+                  return (
+                    <React.Fragment key={idx}>
+                      <div className="flex flex-col items-center gap-1 flex-1">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
+                          isDone ? 'bg-blue-500 text-white' :
+                          isActive ? 'bg-blue-600 text-white ring-2 ring-blue-400/40' :
+                          'bg-white/5 text-slate-500'
+                        }`}>
+                          {isDone ? '✓' : stepNum}
+                        </div>
+                        <span className={`text-[8px] font-black uppercase tracking-wide text-center leading-tight ${isActive ? 'text-blue-400' : isDone ? 'text-slate-400' : 'text-slate-600'}`}>
+                          {label}
+                        </span>
+                      </div>
+                      {idx < 3 && <div className={`h-px flex-1 mb-4 transition-all ${isDone ? 'bg-blue-500' : 'bg-white/5'}`} />}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
 
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Proje Açıklaması</label>
-                  <textarea 
-                    required
-                    value={newDescription}
-                    onChange={(e) => setNewDescription(e.target.value)}
-                    placeholder="Projenin temel hedeflerini ve kapsamını kısaca belirtin..."
-                    rows={4}
-                    className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-5 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all resize-none italic"
-                  />
-                </div>
+            {/* Step Content (scrollable) */}
+            <div className="flex-1 overflow-y-auto px-8 pb-4">
 
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Sorumlular</label>
-                  {sorumlular.map((s, i) => (
-                    <div key={i} className="flex gap-2 mb-2">
-                      <input
-                        placeholder="Etiket (ör: Yazılım sorumlusu)"
-                        value={s.etiket}
-                        onChange={e => updateSorumlu(i, 'etiket', e.target.value)}
-                        className="flex-1 bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3 text-white text-xs font-bold outline-none focus:border-blue-500/50 transition-all"
-                        maxLength={60}
-                      />
-                      <input
-                        placeholder="İsim (ör: Ali Veli)"
-                        value={s.isim}
-                        onChange={e => updateSorumlu(i, 'isim', e.target.value)}
-                        className="flex-1 bg-slate-900/50 border border-white/5 rounded-xl px-4 py-3 text-white text-xs font-bold outline-none focus:border-blue-500/50 transition-all"
-                        maxLength={60}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeSorumlu(i)}
-                        className="px-3 py-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all text-xs font-black"
-                      >Sil</button>
+              {/* STEP 1: Name & Description */}
+              {wizardStep === 1 && (
+                <div className="space-y-5 py-2">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Proje Başlığı *</label>
+                    <input
+                      required
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="Örn: Mobil Kredi Akış Modernizasyonu"
+                      className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-5 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Proje Açıklaması *</label>
+                    <textarea
+                      required
+                      value={newDescription}
+                      onChange={(e) => setNewDescription(e.target.value)}
+                      placeholder="Projenin temel hedeflerini ve kapsamını kısaca belirtin..."
+                      rows={5}
+                      className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-5 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all resize-none italic"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: Birimler */}
+              {wizardStep === 2 && (
+                <div className="space-y-4 py-2">
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Projenin Birimleri</p>
+                  <p className="text-xs text-slate-400 italic">Her birim için tipi, adı ve sorumlusunu belirleyin. Birden fazla birim eklenebilir.</p>
+
+                  {birimler.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 opacity-40 border border-dashed border-white/10 rounded-2xl">
+                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Henüz birim eklenmedi</p>
+                    </div>
+                  )}
+
+                  {birimler.map((b, i) => (
+                    <div key={i} className="bg-slate-900/40 border border-white/5 rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Birim {i + 1}</span>
+                        <button type="button" onClick={() => removeBirim(i)} className="text-red-400 hover:text-red-300 text-xs font-black px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-all">Sil</button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Birim tipi */}
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Birim Tipi</label>
+                          <select
+                            value={b.birimTipi}
+                            onChange={e => updateBirim(i, 'birimTipi', e.target.value)}
+                            className="w-full bg-slate-900/70 border border-white/5 rounded-xl px-3 py-2.5 text-white text-xs font-bold outline-none focus:border-blue-500/50 transition-all"
+                          >
+                            {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        {/* Birim adı */}
+                        <div className="space-y-1">
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Birim Adı</label>
+                          <input
+                            value={b.birimAdi}
+                            onChange={e => updateBirim(i, 'birimAdi', e.target.value)}
+                            placeholder="Ör: Gömülü Yazılım"
+                            className="w-full bg-slate-900/70 border border-white/5 rounded-xl px-3 py-2.5 text-white text-xs font-bold outline-none focus:border-blue-500/50 transition-all"
+                          />
+                        </div>
+                      </div>
+                      {/* Sorumlu inline search */}
+                      <div className="space-y-1" ref={el => { birimDropdownRefs.current[i] = el; }}>
+                        <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Birim Sorumlusu</label>
+                        <div className="relative">
+                          <input
+                            value={getBirimInputValue(i, b)}
+                            onChange={e => {
+                              setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { open: true, query: e.target.value } : d));
+                              if (!e.target.value) updateBirim(i, 'sorumluKullanici', '');
+                            }}
+                            onFocus={() => setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { ...d, open: true } : d))}
+                            placeholder="Kullanıcı ara..."
+                            className="w-full bg-slate-900/70 border border-white/5 rounded-xl px-3 py-2.5 text-white text-xs font-bold outline-none focus:border-blue-500/50 transition-all"
+                          />
+                          {b.sorumluKullanici && !(birimDropdowns[i]?.open) && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                              <span className="text-[8px] font-black text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">{b.sorumluKullanici}</span>
+                            </div>
+                          )}
+                          {birimDropdowns[i]?.open && filteredUsersForBirim(birimDropdowns[i]?.query ?? '').length > 0 && (
+                            <ul className="absolute z-20 left-0 right-0 mt-1 bg-[#1e293b] border border-white/10 rounded-2xl shadow-2xl max-h-44 overflow-y-auto">
+                              {filteredUsersForBirim(birimDropdowns[i]?.query ?? '').map(u => (
+                                <li
+                                  key={u.username}
+                                  onMouseDown={() => {
+                                    updateBirim(i, 'sorumluKullanici', u.username);
+                                    setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { open: false, query: '' } : d));
+                                  }}
+                                  className="px-4 py-2.5 flex items-center gap-3 cursor-pointer hover:bg-blue-600/20 transition-colors"
+                                >
+                                  <UserAvatar username={u.username} displayName={u.fullName || u.username} accessToken={user.accessToken} size="sm" />
+                                  <div>
+                                    <p className="text-white font-bold text-xs">{u.fullName || u.username}</p>
+                                    <p className="text-slate-500 text-[9px]">{u.username}</p>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
+
                   <button
                     type="button"
-                    onClick={addSorumlu}
-                    className="text-[9px] font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest transition-colors"
-                  >+ Sorumlu ekle</button>
+                    onClick={addBirim}
+                    className="flex items-center gap-2 text-[9px] font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest transition-colors px-4 py-2.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20"
+                  >
+                    <span className="text-sm">+</span> Birim Ekle
+                  </button>
                 </div>
+              )}
 
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">İlgili Ekipler</label>
-                  {availableTeams.map(team => (
-                    <label key={team.id} className="flex items-center gap-2 cursor-pointer text-slate-300 text-xs font-medium py-1">
+              {/* STEP 3: Teams */}
+              {wizardStep === 3 && (
+                <div className="space-y-4 py-2">
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">İlgili Ekipler</p>
+                  <p className="text-xs text-slate-400 italic">Projeyle ilgili ekipleri işaretleyin.</p>
+
+                  {availableTeams.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 opacity-40">
+                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Henüz ekip bulunmuyor.</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    {availableTeams.map(team => {
+                      const isChecked = ilgiliEkipIdleri.includes(team.id);
+                      return (
+                        <label
+                          key={team.id}
+                          className={`flex items-center gap-4 cursor-pointer p-4 rounded-2xl border transition-all ${
+                            isChecked ? 'bg-blue-600/15 border-blue-500/40' : 'bg-slate-900/30 border-white/5 hover:border-white/10'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={e => {
+                              if (e.target.checked) setIlgiliEkipIdleri(prev => [...prev, team.id]);
+                              else setIlgiliEkipIdleri(prev => prev.filter(id => id !== team.id));
+                            }}
+                            className="accent-blue-500 w-4 h-4 flex-shrink-0"
+                          />
+                          {/* Leader photo */}
+                          <div className="flex-shrink-0">
+                            <UserAvatar
+                              username={team.leader}
+                              displayName={getUserFullName(team.leader)}
+                              accessToken={user.accessToken}
+                              size="md"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white font-black text-sm italic">{team.title}</p>
+                            <p className="text-slate-500 text-[9px] font-bold uppercase tracking-widest mt-0.5">
+                              Lider: {getUserFullName(team.leader)}
+                            </p>
+                            <p className="text-slate-600 text-[8px] mt-0.5">{team.members.length} üye</p>
+                          </div>
+                          {isChecked && (
+                            <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                            </div>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 4: Dates & Extras */}
+              {wizardStep === 4 && (
+                <div className="space-y-5 py-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Başlama Tarihi</label>
                       <input
-                        type="checkbox"
-                        checked={ilgiliEkipIdleri.includes(team.id)}
-                        onChange={e => {
-                          if (e.target.checked) setIlgiliEkipIdleri(prev => [...prev, team.id]);
-                          else setIlgiliEkipIdleri(prev => prev.filter(id => id !== team.id));
-                        }}
-                        className="accent-blue-500"
+                        type="date"
+                        value={baslamaTarihi}
+                        onChange={e => setBaslamaTarihi(e.target.value)}
+                        className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all"
                       />
-                      {team.title}
-                    </label>
-                  ))}
-                  {availableTeams.length === 0 && <p className="text-slate-500 text-xs">Henüz ekip oluşturulmamış.</p>}
-                </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Beklenen Bitiş Tarihi</label>
+                      <input
+                        type="date"
+                        value={bitisTarihi}
+                        onChange={e => setBitisTarihi(e.target.value)}
+                        className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all"
+                      />
+                    </div>
+                  </div>
 
-                <div className="flex gap-4 pt-4">
-                   <button 
-                     type="button"
-                     onClick={closeModal}
-                     className="flex-1 py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-500 hover:bg-white/5 transition-all"
-                   >
-                     Vazgeç
-                   </button>
-                   <button 
-                     type="submit"
-                     disabled={isCreating}
-                     className="flex-1 py-5 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-blue-600/20 transition-all disabled:opacity-50"
-                   >
-                     {isCreating ? 'Oluşturuluyor...' : 'Projeyi Kaydet'}
-                   </button>
+                  <div className="grid grid-cols-2 gap-4">
+                    <label className={`flex items-center gap-3 cursor-pointer p-4 rounded-2xl border transition-all ${otomatikPipeline ? 'bg-blue-600/15 border-blue-500/40' : 'bg-slate-900/30 border-white/5 hover:border-white/10'}`}>
+                      <input type="checkbox" checked={otomatikPipeline} onChange={e => setOtomatikPipeline(e.target.checked)} className="accent-blue-500 w-4 h-4 flex-shrink-0" />
+                      <div>
+                        <p className="text-white font-black text-xs">Otomatik Pipeline</p>
+                        <p className="text-slate-500 text-[8px] italic">CI/CD süreci mevcut</p>
+                      </div>
+                    </label>
+                    <label className={`flex items-center gap-3 cursor-pointer p-4 rounded-2xl border transition-all ${outsource ? 'bg-blue-600/15 border-blue-500/40' : 'bg-slate-900/30 border-white/5 hover:border-white/10'}`}>
+                      <input type="checkbox" checked={outsource} onChange={e => setOutsource(e.target.checked)} className="accent-blue-500 w-4 h-4 flex-shrink-0" />
+                      <div>
+                        <p className="text-white font-black text-xs">Outsource</p>
+                        <p className="text-slate-500 text-[8px] italic">Dışarıya temin edildi</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Wiki Linki</label>
+                    <input
+                      type="url"
+                      value={wikiLinki}
+                      onChange={e => setWikiLinki(e.target.value)}
+                      placeholder="https://wiki.example.com/proje"
+                      className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">TFS Linki</label>
+                    <input
+                      type="url"
+                      value={tfsLinki}
+                      onChange={e => setTfsLinki(e.target.value)}
+                      placeholder="https://tfs.example.com/proje"
+                      className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-5 py-4 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all"
+                    />
+                  </div>
                 </div>
-              </form>
+              )}
+            </div>
+
+            {/* Footer Navigation */}
+            <div className="p-8 pt-4 flex-shrink-0">
+              <div className="flex gap-4">
+                {wizardStep > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setWizardStep(prev => (prev - 1) as 1 | 2 | 3 | 4)}
+                    className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-400 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+                  >
+                    ← Geri
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-500 hover:bg-white/5 transition-all"
+                  >
+                    Vazgeç
+                  </button>
+                )}
+
+                {wizardStep < 4 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (wizardStep === 1 && !newTitle.trim()) { alert('Proje başlığı zorunludur.'); return; }
+                      setWizardStep(prev => (prev + 1) as 1 | 2 | 3 | 4);
+                    }}
+                    className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    İleri →
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCreateProject}
+                    disabled={isCreating}
+                    className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-blue-600/20 transition-all disabled:opacity-50"
+                  >
+                    {isCreating ? 'Oluşturuluyor...' : 'Projeyi Kaydet ✓'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -361,22 +692,11 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
                 <h3 className="text-xl font-black text-white mb-3 tracking-tighter group-hover:text-blue-400 transition-colors italic leading-tight">{project.title}</h3>
                 <p className="text-slate-400 text-xs font-medium leading-relaxed italic line-clamp-2 mb-3 opacity-80">{project.description}</p>
 
-                {(project.sorumlular || []).length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest mb-1">Sorumlular</p>
-                    {(project.sorumlular || []).map((s, i) => (
-                      <p key={i} className="text-xs text-slate-300 font-medium italic">
-                        <span className="text-slate-500">{s.etiket}:</span> {s.isim}
-                      </p>
-                    ))}
-                  </div>
-                )}
-
-                {(project.ilgiliEkipIdleri || []).length > 0 && (
+                {(project.birimler || []).length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {(project.ilgiliEkipIdleri || []).map((teamId, i) => (
-                      <span key={i} className="text-[8px] font-black px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                        {availableTeams.find(t => t.id === teamId)?.title || teamId}
+                    {(project.birimler || []).map((b, i) => (
+                      <span key={i} className="text-[8px] font-black px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                        {b.birimTipi}{b.birimAdi ? `: ${b.birimAdi}` : ''}
                       </span>
                     ))}
                   </div>
@@ -404,3 +724,4 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
     </div>
   );
 };
+
