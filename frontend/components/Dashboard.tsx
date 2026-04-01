@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Projects } from './Projects';
 import { ProjectDetail } from './ProjectDetail';
 import { WeeklySummary } from './WeeklySummary';
@@ -21,10 +21,49 @@ const TsMiniLogo = () => (
   </div>
 );
 
+function isElevatedTitle(title: string): boolean {
+  const t = title.toLowerCase();
+  return (
+    t.includes('müdür') || t.includes('mudur') || t.includes('manager') ||
+    t.includes('direktör') || t.includes('direktor') || t.includes('director') ||
+    t.includes('başkan') || t.includes('baskan') || t.includes('head') ||
+    t.includes('chief') || t.includes('genel müdür') || t.includes('genel mudur')
+  );
+}
+
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [activeTab, setActiveTab] = useState('Projelerim');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedProjectTitle, setSelectedProjectTitle] = useState<string>('');
+  const [isTeamLeader, setIsTeamLeader] = useState(false);
+  const [isRoleChecked, setIsRoleChecked] = useState(false);
+
+  const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+  useEffect(() => {
+    const checkTeamLeadership = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/teams`, {
+          headers: { Authorization: `Bearer ${user.accessToken}` }
+        });
+        if (res.ok) {
+          const teams: { leader: string }[] = await res.json();
+          setIsTeamLeader(teams.some(t => t.leader === user.username));
+        }
+      } catch {
+        // ignore errors; isTeamLeader stays false
+      } finally {
+        setIsRoleChecked(true);
+      }
+    };
+    checkTeamLeadership();
+  }, [user.username, user.accessToken, apiUrl]);
+
+  // Users with elevated titles (Manager/Director/etc.) are identified synchronously from the JWT.
+  // Team leadership requires an async API check; hide the tab until the check completes
+  // to avoid a flicker for users who are team leaders but have no elevated title.
+  const hasElevatedTitle = isElevatedTitle(user.title ?? '');
+  const canSeeReports = hasElevatedTitle || (isRoleChecked && isTeamLeader);
 
   const handleProjectSelect = (id: string, title: string) => {
     setSelectedProjectId(id);
@@ -39,7 +78,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
 
   const menuItems = [
     { id: 'Projelerim', name: 'Projelerim', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /> },
-    { id: 'Raporlar', name: 'Haftalık Raporlar', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 2v-6m-9 9h12" /> },
+    ...(canSeeReports ? [{ id: 'Raporlar', name: 'Haftalık Raporlar', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 2v-6m-9 9h12" /> }] : []),
     { id: 'Ekipler', name: 'Ekipler', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /> },
     { id: 'Sema', name: 'Organizasyon Şeması', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /> },
     { id: 'NasilKullanilir', name: 'Nasıl Kullanılır', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.85-1.137.193-1.914.97-1.914 1.914v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 4h.008v.008H12v-.008z" /> },
