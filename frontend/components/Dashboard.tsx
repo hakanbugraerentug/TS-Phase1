@@ -34,6 +34,7 @@ function isElevatedTitle(title: string): boolean {
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [activeTab, setActiveTab] = useState('Projelerim');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [showTfsModal, setShowTfsModal] = useState(false);
   const [selectedProjectTitle, setSelectedProjectTitle] = useState<string>('');
   const [isTeamLeader, setIsTeamLeader] = useState(false);
   const [isRoleChecked, setIsRoleChecked] = useState(false);
@@ -120,6 +121,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           </nav>
         </div>
 
+        <div className="px-6 pb-4">
+          <button
+            onClick={() => setShowTfsModal(true)}
+            className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest border bg-orange-600/20 border-orange-500/30 text-orange-400 hover:bg-orange-600/30 hover:text-orange-300 transition-all duration-300"
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span className="truncate">TFS ile Sync Et</span>
+          </button>
+        </div>
+
         <div className="mt-auto p-6 border-t border-white/5 bg-[#020617]/40">
           <div className="flex items-center gap-3 mb-6 px-1 group cursor-pointer">
             <UserAvatar username={user.username} displayName={user.name} accessToken={user.accessToken} size="md" />
@@ -172,6 +185,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           <div>Developed by <span className="text-blue-500">Hakan Buğra Erentuğ</span></div>
         </footer>
       </div>
+
+      {showTfsModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setShowTfsModal(false)}
+        >
+          <div
+            className="bg-[#0f172a] border border-orange-500/30 rounded-2xl p-10 shadow-2xl flex flex-col items-center gap-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </div>
+            <p className="text-slate-200 font-black text-lg tracking-wide">Çok Yakında Gelecek</p>
+            <button
+              onClick={() => setShowTfsModal(false)}
+              className="px-8 py-2.5 rounded-xl bg-orange-600/20 border border-orange-500/30 text-orange-400 hover:bg-orange-600/30 hover:text-orange-300 font-black text-[10px] uppercase tracking-widest transition-all duration-300"
+            >
+              Kapat
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
