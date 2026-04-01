@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { User } from '../App';
 import { UserAvatar } from './UserAvatar';
@@ -153,22 +152,31 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
         const project = allProjects.find(p => p.id === c.projectId);
         return {
           commentId: c.id,
-          date: new Date(c.date).toISOString().split('T')[0],
+          date: c.date ? c.date.substring(0, 10) : new Date().toISOString().substring(0, 10),
           username: c.username,
           projectName: project ? project.title : c.projectId,
           userComment: c.content
         };
       });
 
+      if (aiComments.length === 0) {
+        throw new Error('Hiç yorum bulunamadı. Önce proje yorumları ekleyin.');
+      }
+
+      const payload = { comments: aiComments, prompt: prompt || '' };
+
+      console.log('AI Report Payload:', JSON.stringify(payload, null, 2));
+
       // POST to AI report server (no Authorization header required)
       const response = await fetch(`${aiReportUrl}/generate_report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comments: aiComments, prompt })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errText}`);
       }
 
       const data: AiReportResponse = await response.json();
