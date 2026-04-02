@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User } from '../App';
 import { UserAvatar } from './UserAvatar';
+import { ManagerPanel } from './ManagerPanel';
 
 interface Project {
   id: string;
@@ -38,6 +39,7 @@ interface HomePageProps {
   user: User;
   onNavigateToProjects: () => void;
   onNavigateToTeams: () => void;
+  isElevatedUser?: boolean;
 }
 
 // Returns the next Wednesday at 23:59:00 from a given date.
@@ -92,7 +94,7 @@ function getThisWeekRange(): { start: Date; end: Date } {
   return { start: monday, end: sunday };
 }
 
-export const HomePage: React.FC<HomePageProps> = ({ user, onNavigateToProjects, onNavigateToTeams }) => {
+export const HomePage: React.FC<HomePageProps> = ({ user, onNavigateToProjects, onNavigateToTeams, isElevatedUser = false }) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [weeklyComments, setWeeklyComments] = useState<WeeklyComment[]>([]);
@@ -138,32 +140,34 @@ export const HomePage: React.FC<HomePageProps> = ({ user, onNavigateToProjects, 
         );
         setProjects(myProjects);
 
-        // Fetch this week's comments using by-date endpoint
-        const { start, end } = getThisWeekRange();
-        const commentsRes = await fetch(
-          `${apiUrl}/api/comments/by-date?startDate=${start.toISOString()}&endDate=${end.toISOString()}`,
-          { headers }
-        );
+        // Only fetch comments for non-elevated users
+        if (!isElevatedUser) {
+          const { start, end } = getThisWeekRange();
+          const commentsRes = await fetch(
+            `${apiUrl}/api/comments/by-date?startDate=${start.toISOString()}&endDate=${end.toISOString()}`,
+            { headers }
+          );
 
-        if (commentsRes.ok) {
-          const allComments: WeeklyComment[] = await commentsRes.json();
-          const myComments = (allComments || []).filter(c => c.username === user.username);
+          if (commentsRes.ok) {
+            const allComments: WeeklyComment[] = await commentsRes.json();
+            const myComments = (allComments || []).filter(c => c.username === user.username);
 
-          // Attach project titles
-          const projectMap: Record<string, string> = {};
-          for (const p of data || []) {
-            projectMap[p.id] = p.title;
+            // Attach project titles
+            const projectMap: Record<string, string> = {};
+            for (const p of data || []) {
+              projectMap[p.id] = p.title;
+            }
+            const commentsWithTitles = myComments.map(c => ({
+              ...c,
+              projectTitle: projectMap[c.projectId] || c.projectId,
+            }));
+            setWeeklyComments(commentsWithTitles);
           }
-          const commentsWithTitles = myComments.map(c => ({
-            ...c,
-            projectTitle: projectMap[c.projectId] || c.projectId,
-          }));
-          setWeeklyComments(commentsWithTitles);
         }
       }
 
-      // Teams where user is member or leader
-      if (teamRes.ok) {
+      // Teams where user is member or leader (only for non-elevated users)
+      if (teamRes.ok && !isElevatedUser) {
         const data: Team[] = await teamRes.json();
         const myTeams = (data || []).filter(
           t => t.leader === user.username || (t.members || []).includes(user.username)
@@ -185,13 +189,13 @@ export const HomePage: React.FC<HomePageProps> = ({ user, onNavigateToProjects, 
     } finally {
       setIsLoading(false);
     }
-  }, [user.username, user.accessToken, apiUrl]);
+  }, [user.username, user.accessToken, apiUrl, isElevatedUser]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const hasNoComments = !isLoading && weeklyComments.length === 0;
+  const hasNoComments = !isElevatedUser && !isLoading && weeklyComments.length === 0;
 
   return (
     <div className="space-y-8">
@@ -264,139 +268,184 @@ export const HomePage: React.FC<HomePageProps> = ({ user, onNavigateToProjects, 
         </div>
       )}
 
-      {/* ── Three info columns ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
-        {/* My Projects */}
-        <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-6 shadow-xl flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">İlgilendiğim Projeler</span>
-            </div>
-            <span className="text-xs font-black text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full">
-              {projects.length}
-            </span>
-          </div>
-
-          {isLoading ? (
-            <div className="flex-1 flex items-center justify-center text-slate-600 text-xs">Yükleniyor…</div>
-          ) : projects.length === 0 ? (
-            <p className="text-slate-600 text-xs text-center flex-1 flex items-center justify-center">Henüz kayıtlı proje yok.</p>
-          ) : (
-            <ul className="space-y-2 flex-1 overflow-y-auto max-h-64">
-              {projects.map(p => (
-                <li key={p.id} className="flex items-center gap-3 px-4 py-3 bg-white/3 rounded-xl border border-white/5 hover:bg-blue-600/10 hover:border-blue-500/20 transition-all">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-                  <span className="text-sm font-semibold text-slate-200 truncate">{p.title}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <button
-            onClick={onNavigateToProjects}
-            className="mt-4 w-full py-2.5 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 font-black text-[9px] uppercase tracking-widest transition-all"
-          >
-            Tüm Projeler
-          </button>
-        </div>
-
-        {/* My Teams */}
-        <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-6 shadow-xl flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Kayıtlı Olduğum Ekipler</span>
-            </div>
-            <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
-              {teams.length}
-            </span>
-          </div>
-
-          {isLoading ? (
-            <div className="flex-1 flex items-center justify-center text-slate-600 text-xs">Yükleniyor…</div>
-          ) : teams.length === 0 ? (
-            <p className="text-slate-600 text-xs text-center flex-1 flex items-center justify-center">Henüz kayıtlı ekip yok.</p>
-          ) : (
-            <ul className="space-y-2 flex-1 overflow-y-auto max-h-64">
-              {teams.map(t => (
-                <li key={t.id} className="px-4 py-3 bg-white/3 rounded-xl border border-white/5 hover:bg-emerald-600/10 hover:border-emerald-500/20 transition-all">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-                    <span className="text-sm font-semibold text-slate-200 truncate">{t.title}</span>
-                    {t.leader === user.username && (
-                      <span className="ml-auto text-[8px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full flex-shrink-0">
-                        Lider
-                      </span>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <button
-            onClick={onNavigateToTeams}
-            className="mt-4 w-full py-2.5 rounded-xl bg-emerald-600/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-600/20 hover:text-emerald-300 font-black text-[9px] uppercase tracking-widest transition-all"
-          >
-            Tüm Ekipler
-          </button>
-        </div>
-
-        {/* Weekly Comments */}
-        <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-6 shadow-xl flex flex-col">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z" />
-              </svg>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Bu Haftaki Yorumlarım</span>
-            </div>
-            <span className={`text-xs font-black px-2.5 py-1 rounded-full ${weeklyComments.length === 0 && !isLoading ? 'text-red-400 bg-red-500/10' : 'text-violet-400 bg-violet-500/10'}`}>
-              {weeklyComments.length}
-            </span>
-          </div>
-
-          {isLoading ? (
-            <div className="flex-1 flex items-center justify-center text-slate-600 text-xs">Yükleniyor…</div>
-          ) : weeklyComments.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
-              <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* ── Three info columns (non-elevated) / Projects + Manager Panel (elevated) ── */}
+      {isElevatedUser ? (
+        <div className="space-y-6">
+          {/* My Projects card */}
+          <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-6 shadow-xl flex flex-col">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                 </svg>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">İlgilendiğim Projeler</span>
               </div>
-              <p className="text-red-400 text-xs font-bold">Bu hafta yorum yok!</p>
+              <span className="text-xs font-black text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full">
+                {projects.length}
+              </span>
             </div>
-          ) : (
-            <ul className="space-y-3 flex-1 overflow-y-auto max-h-64">
-              {weeklyComments.map(c => (
-                <li key={c.id} className="px-4 py-3 bg-white/3 rounded-xl border border-white/5">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-violet-400 mb-1 truncate">
-                    {c.projectTitle}
-                  </p>
-                  <p className="text-sm text-slate-300 line-clamp-2">{c.content}</p>
-                  <p className="text-[9px] text-slate-600 mt-1.5">
-                    {new Date(c.date).toLocaleString('tr-TR', {
-                      day: '2-digit', month: '2-digit', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit'
-                    })}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
+
+            {isLoading ? (
+              <div className="flex items-center justify-center text-slate-600 text-xs py-4">Yükleniyor…</div>
+            ) : projects.length === 0 ? (
+              <p className="text-slate-600 text-xs text-center py-4">Henüz kayıtlı proje yok.</p>
+            ) : (
+              <ul className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                {projects.map(p => (
+                  <li key={p.id} className="flex items-center gap-2 px-4 py-2 bg-white/3 rounded-xl border border-white/5 hover:bg-blue-600/10 hover:border-blue-500/20 transition-all">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                    <span className="text-sm font-semibold text-slate-200">{p.title}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <button
+              onClick={onNavigateToProjects}
+              className="mt-4 w-full py-2.5 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 font-black text-[9px] uppercase tracking-widest transition-all"
+            >
+              Tüm Projeler
+            </button>
+          </div>
+
+          {/* Manager Panel embedded */}
+          <ManagerPanel user={user} />
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+          {/* My Projects */}
+          <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-6 shadow-xl flex flex-col">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">İlgilendiğim Projeler</span>
+              </div>
+              <span className="text-xs font-black text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full">
+                {projects.length}
+              </span>
+            </div>
+
+            {isLoading ? (
+              <div className="flex-1 flex items-center justify-center text-slate-600 text-xs">Yükleniyor…</div>
+            ) : projects.length === 0 ? (
+              <p className="text-slate-600 text-xs text-center flex-1 flex items-center justify-center">Henüz kayıtlı proje yok.</p>
+            ) : (
+              <ul className="space-y-2 flex-1 overflow-y-auto max-h-64">
+                {projects.map(p => (
+                  <li key={p.id} className="flex items-center gap-3 px-4 py-3 bg-white/3 rounded-xl border border-white/5 hover:bg-blue-600/10 hover:border-blue-500/20 transition-all">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                    <span className="text-sm font-semibold text-slate-200 truncate">{p.title}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <button
+              onClick={onNavigateToProjects}
+              className="mt-4 w-full py-2.5 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 font-black text-[9px] uppercase tracking-widest transition-all"
+            >
+              Tüm Projeler
+            </button>
+          </div>
+
+          {/* My Teams */}
+          <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-6 shadow-xl flex flex-col">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Kayıtlı Olduğum Ekipler</span>
+              </div>
+              <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
+                {teams.length}
+              </span>
+            </div>
+
+            {isLoading ? (
+              <div className="flex-1 flex items-center justify-center text-slate-600 text-xs">Yükleniyor…</div>
+            ) : teams.length === 0 ? (
+              <p className="text-slate-600 text-xs text-center flex-1 flex items-center justify-center">Henüz kayıtlı ekip yok.</p>
+            ) : (
+              <ul className="space-y-2 flex-1 overflow-y-auto max-h-64">
+                {teams.map(t => (
+                  <li key={t.id} className="px-4 py-3 bg-white/3 rounded-xl border border-white/5 hover:bg-emerald-600/10 hover:border-emerald-500/20 transition-all">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                      <span className="text-sm font-semibold text-slate-200 truncate">{t.title}</span>
+                      {t.leader === user.username && (
+                        <span className="ml-auto text-[8px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full flex-shrink-0">
+                          Lider
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <button
+              onClick={onNavigateToTeams}
+              className="mt-4 w-full py-2.5 rounded-xl bg-emerald-600/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-600/20 hover:text-emerald-300 font-black text-[9px] uppercase tracking-widest transition-all"
+            >
+              Tüm Ekipler
+            </button>
+          </div>
+
+          {/* Weekly Comments */}
+          <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-6 shadow-xl flex flex-col">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z" />
+                </svg>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Bu Haftaki Yorumlarım</span>
+              </div>
+              <span className={`text-xs font-black px-2.5 py-1 rounded-full ${weeklyComments.length === 0 && !isLoading ? 'text-red-400 bg-red-500/10' : 'text-violet-400 bg-violet-500/10'}`}>
+                {weeklyComments.length}
+              </span>
+            </div>
+
+            {isLoading ? (
+              <div className="flex-1 flex items-center justify-center text-slate-600 text-xs">Yükleniyor…</div>
+            ) : weeklyComments.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
+                <div className="w-10 h-10 bg-red-500/10 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <p className="text-red-400 text-xs font-bold">Bu hafta yorum yok!</p>
+              </div>
+            ) : (
+              <ul className="space-y-3 flex-1 overflow-y-auto max-h-64">
+                {weeklyComments.map(c => (
+                  <li key={c.id} className="px-4 py-3 bg-white/3 rounded-xl border border-white/5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-violet-400 mb-1 truncate">
+                      {c.projectTitle}
+                    </p>
+                    <p className="text-sm text-slate-300 line-clamp-2">{c.content}</p>
+                    <p className="text-[9px] text-slate-600 mt-1.5">
+                      {new Date(c.date).toLocaleString('tr-TR', {
+                        day: '2-digit', month: '2-digit', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                      })}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

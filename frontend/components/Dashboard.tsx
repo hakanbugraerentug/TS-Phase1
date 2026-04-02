@@ -82,8 +82,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   // Team leadership requires an async API check; hide the tab until the check completes
   // to avoid a flicker for users who are team leaders but have no elevated title.
   const hasElevatedTitle = isElevatedTitle(user.title ?? '');
-  const canSeeReports = !hasElevatedTitle && isRoleChecked && isTeamLeader;
-  const canSeeManagerPanel = hasElevatedTitle || isDelegated;
+  const canSeeReports = hasElevatedTitle || (isRoleChecked && isTeamLeader);
+  // Elevated users (Müdür and above) now see the ManagerPanel embedded on the HomePage,
+  // so the sidebar tab is shown only for non-elevated delegated users.
+  const canSeeManagerPanel = !hasElevatedTitle && isDelegated;
 
   const handleProjectSelect = (id: string, title: string) => {
     setSelectedProjectId(id);
@@ -201,7 +203,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
 
         <main className="p-10 flex-grow relative overflow-y-auto bg-gradient-to-b from-[#0f172a] to-[#020617] scroll-smooth">
           {activeTab === 'Anasayfa' ? (
-            <HomePage user={user} onNavigateToProjects={() => setActiveTab('Projelerim')} onNavigateToTeams={() => setActiveTab('Ekipler')} />
+            <HomePage user={user} onNavigateToProjects={() => setActiveTab('Projelerim')} onNavigateToTeams={() => setActiveTab('Ekipler')} isElevatedUser={hasElevatedTitle} />
           ) : activeTab === 'Projelerim' ? (
             <Projects user={user} onNavigateToReports={() => setActiveTab('Raporlar')} onSelectProject={handleProjectSelect} />
           ) : activeTab === 'Raporlar' ? (
