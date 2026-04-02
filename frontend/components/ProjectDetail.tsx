@@ -229,9 +229,15 @@ export const ProjectDetail: React.FC<{
     setSettingsSaveSuccess(false);
     try {
       // Fetch the latest saved project data to avoid overwriting unsaved details-tab changes
-      const currentProject = await fetch(`${apiUrl}/api/projects/${projectId}`, {
+      const currentProjectRes = await fetch(`${apiUrl}/api/projects/${projectId}`, {
         headers: { 'Authorization': `Bearer ${user.accessToken}` }
-      }).then(r => r.ok ? r.json() : null);
+      });
+      const currentProject = currentProjectRes.ok ? await currentProjectRes.json() : null;
+      if (!currentProject) {
+        alert('Proje verileri alınamadı. Lütfen tekrar deneyin.');
+        setIsSavingSettings(false);
+        return;
+      }
 
       const [putRes, patchRes] = await Promise.all([
         fetch(`${apiUrl}/api/projects/${projectId}`, {
