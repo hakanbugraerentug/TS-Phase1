@@ -71,28 +71,6 @@ interface TeamDto {
   projectId: string;
 }
 
-interface BulletLine {
-  bullet0: string | null;
-  bullet1: string[] | null;
-  bullet2: string[] | null;
-  bullet3: string[] | null;
-}
-
-interface TraceabilityEntry {
-  project: string;
-  bullet_field: string;
-  text: string;
-  sources: string[];
-}
-
-interface AiReportResponse {
-  title: string;
-  instructions: string[];
-  bullet_lines: BulletLine[];
-  traceability: TraceabilityEntry[];
-  source_map: Record<string, unknown>;
-}
-
 type RoleType = 'department_manager' | 'directorate_director' | 'sector_head' | 'other';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -123,48 +101,6 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   return chunks;
 }
 
-const MS_PER_DAY = 86400000;
-
-function getWeekStart(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function getWeekNumber(date: Date): number {
-  const yearStart = new Date(date.getFullYear(), 0, 1);
-  const firstDayOfYear = yearStart.getDay();
-  const firstMonday = firstDayOfYear <= 1
-    ? new Date(yearStart.getTime() - (firstDayOfYear === 0 ? 6 : firstDayOfYear - 1) * MS_PER_DAY)
-    : new Date(yearStart.getTime() + (8 - firstDayOfYear) * MS_PER_DAY);
-  const weekStartDate = getWeekStart(date);
-  const diff = weekStartDate.getTime() - firstMonday.getTime();
-  return Math.max(1, Math.floor(diff / (7 * MS_PER_DAY)) + 1);
-}
-
-function getWeekLabel(weekStartStr: string): string {
-  const d = new Date(weekStartStr + 'T00:00:00');
-  const weekNum = getWeekNumber(d);
-  return `${d.getFullYear()} - ${weekNum}. Hafta`;
-}
-
-function generateWeekOptions(count: number = 16): { value: string; label: string }[] {
-  const options = [];
-  const now = new Date();
-  for (let i = 0; i < count; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i * 7);
-    const ws = getWeekStart(d);
-    const value = ws.toISOString().split('T')[0];
-    const weekNum = getWeekNumber(ws);
-    const label = `${ws.getFullYear()} - ${weekNum}. Hafta`;
-    options.push({ value, label });
-  }
-  return options;
-}
 
 function getLeadersForMember(
   memberUsername: string,
@@ -188,12 +124,10 @@ function getLeadersForMember(
 interface PersonNodeProps {
   node: NodeData;
   accessToken: string;
-  isSubordinate?: boolean;
-  onViewReport?: (username: string) => void;
   allTeams?: TeamDto[];
 }
 
-const PersonNode: React.FC<PersonNodeProps> = ({ node, accessToken, isSubordinate, onViewReport, allTeams }) => {
+const PersonNode: React.FC<PersonNodeProps> = ({ node, accessToken, allTeams }) => {
   const style = node.colorStyle;
   const leaderTeams = allTeams ? allTeams.filter(t => t.leader === node.username) : [];
 
@@ -230,18 +164,6 @@ const PersonNode: React.FC<PersonNodeProps> = ({ node, accessToken, isSubordinat
         {node.isActiveUser && (
           <span className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_rgba(59,130,246,0.8)]" />
         )}
-        {isSubordinate && onViewReport && (
-          <button
-            onClick={() => onViewReport(node.username)}
-            className="ml-auto flex-shrink-0 p-1.5 rounded-lg bg-slate-700/50 hover:bg-blue-600/40 border border-white/10 hover:border-blue-500/50 transition-all"
-            title={`${node.fullName} raporunu gör`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-slate-400 hover:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-          </button>
-        )}
       </div>
       {leaderTeams.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1">
@@ -272,12 +194,10 @@ interface NodeRowProps {
   nodes: NodeData[];
   connectorClass: string;
   accessToken: string;
-  isSubordinate?: boolean;
-  onViewReport?: (username: string) => void;
   allTeams?: TeamDto[];
 }
 
-const NodeRow: React.FC<NodeRowProps> = ({ nodes, connectorClass, accessToken, isSubordinate, onViewReport, allTeams }) => {
+const NodeRow: React.FC<NodeRowProps> = ({ nodes, connectorClass, accessToken, allTeams }) => {
   const chunks = chunkArray<NodeData>(nodes, MAX_PER_ROW);
   return (
     <div className="flex flex-col items-center">
@@ -300,8 +220,6 @@ const NodeRow: React.FC<NodeRowProps> = ({ nodes, connectorClass, accessToken, i
                 <PersonNode
                   node={node}
                   accessToken={accessToken}
-                  isSubordinate={isSubordinate}
-                  onViewReport={onViewReport}
                   allTeams={allTeams}
                 />
               </div>
@@ -321,20 +239,6 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
   const [allTeams, setAllTeams] = useState<TeamDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [selectedWeek, setSelectedWeek] = useState<string>(() => {
-    const now = new Date();
-    return getWeekStart(now).toISOString().split('T')[0];
-  });
-
-  const [reportModal, setReportModal] = useState<{
-    username: string;
-    fullName: string;
-    loading: boolean;
-    data: AiReportResponse | null;
-    error: string | null;
-    notFound: boolean;
-  } | null>(null);
 
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
@@ -430,33 +334,6 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
     return map;
   }, [leaderSubsPre, nonLeaderSubsPre, allTeams, hasLeaderLayerPre]);
 
-  const handleViewReport = async (username: string) => {
-    const sub = allUsers.find(u => u.username === username);
-    const fullName = sub?.fullName || username;
-
-    setReportModal({ username, fullName, loading: true, data: null, error: null, notFound: false });
-
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/weekly-reports/by-user?username=${encodeURIComponent(username)}&weekStart=${selectedWeek}`,
-        { headers: { Authorization: `Bearer ${user.accessToken}` } }
-      );
-
-      if (res.status === 404) {
-        setReportModal(prev => prev ? { ...prev, loading: false, notFound: true } : null);
-        return;
-      }
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json();
-      setReportModal(prev => prev ? { ...prev, loading: false, data: data.reportData || null } : null);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setReportModal(prev => prev ? { ...prev, loading: false, error: msg } : null);
-    }
-  };
-
   if (loading) return (
     <div className="w-full h-[calc(100vh-180px)] flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
@@ -517,26 +394,10 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
     ...(hasLeaderLayer ? [{ key: 'teamMember' as const, label: LAYER_COLORS.teamMember.label }] : []),
   ];
 
-  const weekOptions = generateWeekOptions(16);
-
   return (
     <div className="relative w-full h-[calc(100vh-180px)] overflow-auto">
-      {/* Top-right panel: week selector + legend */}
+      {/* Top-right panel: legend */}
       <div className="absolute top-6 right-6 z-20 flex flex-col gap-3">
-        {/* Week Selector */}
-        <div className="bg-[#1e293b]/90 backdrop-blur-md border border-white/10 rounded-2xl p-3">
-          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2">Hafta Seç</p>
-          <select
-            value={selectedWeek}
-            onChange={e => setSelectedWeek(e.target.value)}
-            className="bg-slate-800 text-slate-200 text-xs rounded-xl border border-white/10 px-3 py-1.5 focus:outline-none focus:border-blue-500 w-full"
-          >
-            {weekOptions.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
-
         {/* Legend — hierarchical layers */}
         {legendLayers.length > 0 && (
           <div className="bg-[#1e293b]/90 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col gap-2 min-w-[180px]">
@@ -658,8 +519,6 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                   }))}
                   connectorClass={LAYER_COLORS.teamLeader.connector}
                   accessToken={user.accessToken}
-                  isSubordinate
-                  onViewReport={handleViewReport}
                   allTeams={allTeams}
                 />
 
@@ -678,8 +537,6 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                         }))}
                         connectorClass={LAYER_COLORS.teamMember.connector}
                         accessToken={user.accessToken}
-                        isSubordinate
-                        onViewReport={handleViewReport}
                         allTeams={allTeams}
                       />
                     </React.Fragment>
@@ -698,8 +555,6 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                       }))}
                       connectorClass={LAYER_COLORS.subordinate.connector}
                       accessToken={user.accessToken}
-                      isSubordinate
-                      onViewReport={handleViewReport}
                     />
                   </>
                 )}
@@ -714,97 +569,12 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                 }))}
                 connectorClass={LAYER_COLORS.subordinate.connector}
                 accessToken={user.accessToken}
-                isSubordinate
-                onViewReport={handleViewReport}
               />
             )}
           </>
         )}
 
       </div>
-
-      {/* Report Modal */}
-      {reportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#0f172a] border border-white/10 rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl mx-4">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
-              <div>
-                <h2 className="text-white font-black text-lg">{reportModal.fullName}</h2>
-                <p className="text-slate-500 text-xs mt-0.5">
-                  {getWeekLabel(selectedWeek)} · Haftalık Rapor
-                </p>
-              </div>
-              <button
-                onClick={() => setReportModal(null)}
-                className="p-2 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all"
-                aria-label="Kapat"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {reportModal.loading && (
-                <div className="flex items-center justify-center h-32">
-                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                </div>
-              )}
-
-              {reportModal.notFound && (
-                <div className="flex flex-col items-center justify-center h-32 gap-3">
-                  <div className="text-4xl">📭</div>
-                  <p className="text-slate-400 text-sm font-bold">Bu hafta için rapor bulunamadı.</p>
-                  <p className="text-slate-600 text-xs">{reportModal.fullName} henüz bu haftaki raporunu kaydetmemiş.</p>
-                </div>
-              )}
-
-              {reportModal.error && (
-                <div className="text-red-400 text-sm p-4 bg-red-900/20 rounded-xl border border-red-500/20">
-                  Hata: {reportModal.error}
-                </div>
-              )}
-
-              {reportModal.data && !reportModal.loading && (
-                <div className="space-y-1">
-                  {reportModal.data.instructions?.length > 0 && (
-                    <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/20 rounded-xl">
-                      {reportModal.data.instructions.map((inst, i) => (
-                        <p key={i} className="text-blue-300 text-xs">{inst}</p>
-                      ))}
-                    </div>
-                  )}
-                  {reportModal.data.bullet_lines?.map((line, idx) => {
-                    if (line.bullet0) {
-                      return (
-                        <div key={idx} className="mt-4 mb-2">
-                          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                            ══ {line.bullet0} ══
-                          </p>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div key={idx}>
-                        {line.bullet1?.map((b1, i) => (
-                          <p key={i} className="text-slate-200 text-xs font-bold pl-0">• {b1}</p>
-                        ))}
-                        {line.bullet2?.map((b2, i) => (
-                          <p key={i} className="text-slate-300 text-xs pl-4">– {b2}</p>
-                        ))}
-                        {line.bullet3?.map((b3, i) => (
-                          <p key={i} className="text-slate-400 text-xs pl-8">· {b3}</p>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
