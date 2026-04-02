@@ -81,6 +81,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   // to avoid a flicker for users who are team leaders but have no elevated title.
   const hasElevatedTitle = isElevatedTitle(user.title ?? '');
   const canSeeReports = hasElevatedTitle || (isRoleChecked && isTeamLeader);
+  // Elevated users (Müdür and above) now see the ManagerPanel embedded on the HomePage,
+  // so the sidebar tab is shown only for non-elevated delegated users.
   const canSeeManagerPanel = !hasElevatedTitle && isDelegated;
 
   const handleProjectSelect = (id: string, title: string) => {

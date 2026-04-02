@@ -291,7 +291,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user, onNavigateToProjects, 
             ) : projects.length === 0 ? (
               <p className="text-slate-600 text-xs text-center py-4">Henüz kayıtlı proje yok.</p>
             ) : (
-              <ul className="flex flex-wrap gap-2">
+              <ul className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
                 {projects.map(p => (
                   <li key={p.id} className="flex items-center gap-2 px-4 py-2 bg-white/3 rounded-xl border border-white/5 hover:bg-blue-600/10 hover:border-blue-500/20 transition-all">
                     <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
