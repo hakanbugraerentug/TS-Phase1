@@ -11,6 +11,7 @@ import { ManagerPanel } from './ManagerPanel';
 import { MergeIncomingReports } from './MergeIncomingReports';
 import { HomePage } from './HomePage';
 import { ProjectSummary } from './ProjectSummary';
+import { isElevatedTitle } from '../utils/titleHelpers';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -22,16 +23,6 @@ const TsMiniLogo = () => (
     <span className="text-white font-black text-xl">Ts</span>
   </div>
 );
-
-function isElevatedTitle(title: string): boolean {
-  const t = title.toLowerCase();
-  return (
-    t.includes('müdür') || t.includes('mudur') || t.includes('manager') ||
-    t.includes('direktör') || t.includes('direktor') || t.includes('director') ||
-    t.includes('başkan') || t.includes('baskan') || t.includes('head') ||
-    t.includes('chief') || t.includes('genel müdür') || t.includes('genel mudur')
-  );
-}
 
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [activeTab, setActiveTab] = useState('Anasayfa');

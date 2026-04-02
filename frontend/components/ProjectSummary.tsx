@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User } from '../App';
 import { UserAvatar } from './UserAvatar';
+import { isElevatedTitle } from '../utils/titleHelpers';
 
 interface CommentData {
   id: string;
@@ -59,16 +60,6 @@ interface AiReportResponse {
   bullet_lines: BulletLine[];
   traceability: TraceabilityEntry[];
   source_map: Record<string, AiReportComment>;
-}
-
-function isElevatedTitle(title: string): boolean {
-  const t = title.toLowerCase();
-  return (
-    t.includes('müdür') || t.includes('mudur') || t.includes('manager') ||
-    t.includes('direktör') || t.includes('direktor') || t.includes('director') ||
-    t.includes('başkan') || t.includes('baskan') || t.includes('head') ||
-    t.includes('chief') || t.includes('genel müdür') || t.includes('genel mudur')
-  );
 }
 
 const BULLET_MARKER: Record<number, string> = { 1: '•', 2: '–', 3: '·' };
