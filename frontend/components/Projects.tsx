@@ -776,7 +776,7 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
                           {b.birimTipi}{b.birimAdi ? ` · ${b.birimAdi}` : ''}
                         </span>
                         {b.sorumluKullanici && (
-                          <span className="text-[8px] font-semibold text-slate-400 italic ml-2 truncate max-w-[80px]">
+                          <span title={b.sorumluKullanici} className="text-[8px] font-semibold text-slate-400 italic ml-2 truncate max-w-[80px]">
                             {b.sorumluKullanici}
                           </span>
                         )}
@@ -792,13 +792,16 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
                   const now = new Date();
                   const total = end.getTime() - start.getTime();
                   const elapsed = now.getTime() - start.getTime();
-                  const pct = total > 0 ? Math.min(100, Math.max(0, Math.round((elapsed / total) * 100))) : 0;
+                  const notStarted = elapsed < 0;
+                  const pct = notStarted || total <= 0 ? 0 : Math.min(100, Math.round((elapsed / total) * 100));
                   const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
                   return (
                     <div className="mb-3">
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">İlerleme</span>
-                        <span className="text-[8px] font-black text-blue-400">{pct}%</span>
+                        <span className="text-[8px] font-black text-blue-400">
+                          {notStarted ? 'Başlamadı' : `${pct}%`}
+                        </span>
                       </div>
                       <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                         <div
