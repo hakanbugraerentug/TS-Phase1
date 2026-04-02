@@ -507,21 +507,15 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
     ? nonLeaderSubs.filter(sub => getLeadersForMember(sub.username, leaderSubs, allTeams).length === 0)
     : [];
 
-  // Build the legend layers visible in this chart
-  const visibleLayers: Array<{ key: keyof typeof LAYER_COLORS; label: string }> = [
+  // Build the legend layers visible in this chart (no duplicates)
+  const showTeamLeader = myTeamLeaderInfos.length > 0 || hasLeaderLayer;
+  const legendLayers: Array<{ key: keyof typeof LAYER_COLORS; label: string }> = [
     { key: 'manager', label: LAYER_COLORS.manager.label },
+    ...(showTeamLeader ? [{ key: 'teamLeader' as const, label: LAYER_COLORS.teamLeader.label }] : []),
+    ...(siblings.length > 0 ? [{ key: 'sibling' as const, label: LAYER_COLORS.sibling.label }] : []),
+    ...(hasSubordinates ? [{ key: 'subordinate' as const, label: LAYER_COLORS.subordinate.label }] : []),
+    ...(hasLeaderLayer ? [{ key: 'teamMember' as const, label: LAYER_COLORS.teamMember.label }] : []),
   ];
-  if (myTeamLeaderInfos.length > 0) visibleLayers.push({ key: 'teamLeader', label: LAYER_COLORS.teamLeader.label });
-  if (siblings.length > 0) visibleLayers.push({ key: 'sibling', label: LAYER_COLORS.sibling.label });
-  if (hasSubordinates) {
-    if (hasLeaderLayer) {
-      visibleLayers.push({ key: 'teamLeader', label: LAYER_COLORS.teamLeader.label });
-      visibleLayers.push({ key: 'teamMember', label: LAYER_COLORS.teamMember.label });
-    }
-    visibleLayers.push({ key: 'subordinate', label: LAYER_COLORS.subordinate.label });
-  }
-  // Deduplicate legend entries
-  const legendLayers = visibleLayers.filter((v, i, arr) => arr.findIndex(x => x.key === v.key) === i);
 
   const weekOptions = generateWeekOptions(16);
 
@@ -686,6 +680,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                         accessToken={user.accessToken}
                         isSubordinate
                         onViewReport={handleViewReport}
+                        allTeams={allTeams}
                       />
                     </React.Fragment>
                   );
