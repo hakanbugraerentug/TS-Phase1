@@ -228,6 +228,11 @@ export const ProjectDetail: React.FC<{
     setIsSavingSettings(true);
     setSettingsSaveSuccess(false);
     try {
+      // Fetch the latest saved project data to avoid overwriting unsaved details-tab changes
+      const currentProject = await fetch(`${apiUrl}/api/projects/${projectId}`, {
+        headers: { 'Authorization': `Bearer ${user.accessToken}` }
+      }).then(r => r.ok ? r.json() : null);
+
       const [putRes, patchRes] = await Promise.all([
         fetch(`${apiUrl}/api/projects/${projectId}`, {
           method: 'PUT',
@@ -243,8 +248,8 @@ export const ProjectDetail: React.FC<{
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.accessToken}` },
           body: JSON.stringify({
-            birimler: birimler.filter(b => b.birimAdi.trim()),
-            ilgiliEkipIdleri,
+            birimler: currentProject?.birimler ?? [],
+            ilgiliEkipIdleri: currentProject?.ilgiliEkipIdleri ?? [],
             wikiLinki: settingsWikiLinki.trim() || null,
             tfsLinki: settingsTfsLinki.trim() || null
           })
@@ -657,8 +662,11 @@ export const ProjectDetail: React.FC<{
               <input
                 value={settingsTitle}
                 onChange={e => setSettingsTitle(e.target.value)}
-                className="w-full bg-slate-900/70 border border-white/5 rounded-xl px-4 py-3 text-white text-sm font-bold outline-none focus:border-blue-500/50 transition-all"
+                className={`w-full bg-slate-900/70 border rounded-xl px-4 py-3 text-white text-sm font-bold outline-none focus:border-blue-500/50 transition-all ${!settingsTitle.trim() ? 'border-red-500/50' : 'border-white/5'}`}
               />
+              {!settingsTitle.trim() && (
+                <p className="text-[9px] font-black text-red-400 mt-1">Proje başlığı zorunludur.</p>
+              )}
             </div>
             <div className="space-y-1">
               <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Açıklama</label>
