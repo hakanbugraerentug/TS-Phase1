@@ -271,44 +271,6 @@ export const HomePage: React.FC<HomePageProps> = ({ user, onNavigateToProjects, 
       {/* ── Three info columns (non-elevated) / Projects + Manager Panel (elevated) ── */}
       {isElevatedUser ? (
         <div className="space-y-6">
-          {/* My Projects card */}
-          <div className="bg-[#0f172a] border border-white/5 rounded-2xl p-6 shadow-xl flex flex-col">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">İlgilendiğim Projeler</span>
-              </div>
-              <span className="text-xs font-black text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full">
-                {projects.length}
-              </span>
-            </div>
-
-            {isLoading ? (
-              <div className="flex items-center justify-center text-slate-600 text-xs py-4">Yükleniyor…</div>
-            ) : projects.length === 0 ? (
-              <p className="text-slate-600 text-xs text-center py-4">Henüz kayıtlı proje yok.</p>
-            ) : (
-              <ul className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                {projects.map(p => (
-                  <li key={p.id} className="flex items-center gap-2 px-4 py-2 bg-white/3 rounded-xl border border-white/5 hover:bg-blue-600/10 hover:border-blue-500/20 transition-all">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
-                    <span className="text-sm font-semibold text-slate-200">{p.title}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <button
-              onClick={onNavigateToProjects}
-              className="mt-4 w-full py-2.5 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 font-black text-[9px] uppercase tracking-widest transition-all"
-            >
-              Tüm Projeler
-            </button>
-          </div>
-
           {/* Manager Panel embedded */}
           <ManagerPanel user={user} />
         </div>
