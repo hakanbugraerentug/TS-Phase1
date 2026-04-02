@@ -79,9 +79,11 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [reportStatus, setReportStatus] = useState<'manuel' | 'generated' | null>(null);
 
   const fetchOrgData = useCallback(async () => {
@@ -160,7 +162,7 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
       );
 
       if (subordinateReports.length === 0) {
-        throw new Error('Astlardan bu hafta için gönderilmiş rapor bulunamadı.');
+        throw new Error('Bu hafta için en az bir astın gönderilmiş raporu gereklidir.');
       }
 
       const payload = {
@@ -193,6 +195,7 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
   const saveReport = async () => {
     if (!reportData) return;
     setIsSaving(true);
+    setSaveError(null);
     try {
       let reviewerUsername = '';
       try {
@@ -225,6 +228,7 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       setIsSaved(true);
     } catch (err) {
+      setSaveError('Rapor kaydedilemedi. Lütfen tekrar deneyin.');
       console.error('Rapor kaydedilemedi:', err);
     } finally {
       setIsSaving(false);
@@ -233,6 +237,7 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
 
   const submitToManager = async () => {
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       const response = await fetch(`${apiUrl}/api/weekly-reports/submit`, {
         method: 'PATCH',
@@ -245,6 +250,7 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       setIsSubmitted(true);
     } catch (err) {
+      setSubmitError('Yöneticiye gönderilemedi. Lütfen tekrar deneyin.');
       console.error('Yöneticiye gönderilemedi:', err);
     } finally {
       setIsSubmitting(false);
@@ -269,7 +275,7 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'birlesik_rapor.docx';
+      a.download = `birlesik_rapor_${getWeekStart()}.docx`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -489,6 +495,9 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
                 >
                   {isSaving ? 'Kaydediliyor...' : isSaved ? '✅ Kaydedildi' : '💾 Kaydet'}
                 </button>
+                {saveError && (
+                  <p className="text-red-400 text-[9px] font-bold text-center">{saveError}</p>
+                )}
                 <button
                   onClick={submitToManager}
                   disabled={isSubmitting || !isSaved}
@@ -496,6 +505,9 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
                 >
                   {isSubmitting ? 'Gönderiliyor...' : isSubmitted ? '✅ Yöneticiye Gönderildi' : '📤 Yöneticime Gönder'}
                 </button>
+                {submitError && (
+                  <p className="text-red-400 text-[9px] font-bold text-center">{submitError}</p>
+                )}
               </div>
             </div>
 
