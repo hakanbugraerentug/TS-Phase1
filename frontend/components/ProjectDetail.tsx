@@ -31,6 +31,7 @@ interface AppUser {
 
 const UNIT_TYPES = ['Yazılım', 'Donanım', 'Mekanik', 'Sistem'];
 
+type DetailTab = 'comments' | 'details' | 'settings';
 // Returns the Monday (00:00:00) of the week containing the given date
 const getWeekStart = (d: Date): Date => {
   const day = d.getDay();
@@ -55,8 +56,9 @@ export const ProjectDetail: React.FC<{
   projectId: string;
   projectTitle: string;
   onBack: () => void;
+  onDelete?: () => void;
   user: User;
-}> = ({ projectId, projectTitle, onBack, user }) => {
+}> = ({ projectId, projectTitle, onBack, onDelete, user }) => {
   const [activeTab, setActiveTab] = useState<DetailTab>('comments');
 
   // Comments tab
@@ -74,6 +76,17 @@ export const ProjectDetail: React.FC<{
   const [isSavingDetails, setIsSavingDetails] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [detailsLoaded, setDetailsLoaded] = useState(false);
+
+  // Settings tab
+  const [settingsTitle, setSettingsTitle] = useState(projectTitle);
+  const [settingsDescription, setSettingsDescription] = useState('');
+  const [settingsWikiLinki, setSettingsWikiLinki] = useState('');
+  const [settingsTfsLinki, setSettingsTfsLinki] = useState('');
+  const [projectOwner, setProjectOwner] = useState('');
+  const [projectMembers, setProjectMembers] = useState<string[]>([]);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsSaveSuccess, setSettingsSaveSuccess] = useState(false);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
 
   // Birim user search dropdowns
   const [birimDropdowns, setBirimDropdowns] = useState<{ open: boolean; query: string }[]>([]);
@@ -153,6 +166,12 @@ export const ProjectDetail: React.FC<{
         })));
         setBirimDropdowns((proj.birimler || []).map(() => ({ open: false, query: '' })));
         setIlgiliEkipIdleri(proj.ilgiliEkipIdleri || []);
+        setSettingsTitle(proj.title || projectTitle);
+        setSettingsDescription(proj.description || '');
+        setSettingsWikiLinki(proj.wikiLinki || '');
+        setSettingsTfsLinki(proj.tfsLinki || '');
+        setProjectOwner(proj.owner || '');
+        setProjectMembers(proj.members || []);
       }
       if (teamsRes.ok) {
         const teamsData = await teamsRes.json();
@@ -256,6 +275,79 @@ export const ProjectDetail: React.FC<{
     }
   };
 
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
+    setSettingsSaveSuccess(false);
+    try {
+      // Fetch the latest saved project data to avoid overwriting unsaved details-tab changes
+      const currentProjectRes = await fetch(`${apiUrl}/api/projects/${projectId}`, {
+        headers: { 'Authorization': `Bearer ${user.accessToken}` }
+      });
+      const currentProject = currentProjectRes.ok ? await currentProjectRes.json() : null;
+      if (!currentProject) {
+        alert('Proje verileri alınamadı. Lütfen tekrar deneyin.');
+        setIsSavingSettings(false);
+        return;
+      }
+
+      const [putRes, patchRes] = await Promise.all([
+        fetch(`${apiUrl}/api/projects/${projectId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.accessToken}` },
+          body: JSON.stringify({
+            title: settingsTitle.trim(),
+            description: settingsDescription.trim(),
+            owner: projectOwner,
+            members: projectMembers
+          })
+        }),
+        fetch(`${apiUrl}/api/projects/${projectId}/details`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.accessToken}` },
+          body: JSON.stringify({
+            birimler: currentProject?.birimler ?? [],
+            ilgiliEkipIdleri: currentProject?.ilgiliEkipIdleri ?? [],
+            wikiLinki: settingsWikiLinki.trim() || null,
+            tfsLinki: settingsTfsLinki.trim() || null
+          })
+        })
+      ]);
+      if (putRes.ok && patchRes.ok) {
+        setSettingsSaveSuccess(true);
+        setTimeout(() => setSettingsSaveSuccess(false), 3000);
+      } else {
+        const errData = await (!putRes.ok ? putRes : patchRes).json().catch(() => ({}));
+        alert(errData.message || 'Ayarlar kaydedilemedi.');
+      }
+    } catch (err) {
+      console.error('Ayarlar kaydedilemedi:', err);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!window.confirm(`"${settingsTitle}" projesini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) return;
+    setIsDeletingProject(true);
+    try {
+      const response = await fetch(`${apiUrl}/api/projects/${projectId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${user.accessToken}` }
+      });
+      if (response.ok) {
+        if (onDelete) onDelete();
+        else onBack();
+      } else {
+        alert('Proje silinemedi. Lütfen tekrar deneyin.');
+      }
+    } catch (err) {
+      console.error('Proje silinemedi:', err);
+      alert('Proje silinemedi. Lütfen tekrar deneyin.');
+    } finally {
+      setIsDeletingProject(false);
+    }
+  };
+
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
@@ -343,6 +435,20 @@ export const ProjectDetail: React.FC<{
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
           Birimler &amp; Ekipler
+        </button>
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+            activeTab === 'settings'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+              : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Ayarlar
         </button>
       </div>
 
@@ -636,6 +742,105 @@ export const ProjectDetail: React.FC<{
               </div>
             </>
           )}
+        </div>
+      )}
+      {/* SETTINGS TAB */}
+      {activeTab === 'settings' && (
+        <div className="flex-1 overflow-y-auto space-y-8 pr-1">
+          {/* General Info */}
+          <div className="bg-[#1e293b]/30 backdrop-blur-md rounded-3xl border border-white/5 p-6 space-y-5">
+            <div>
+              <h3 className="text-sm font-black text-white italic">Genel Bilgiler</h3>
+              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-0.5">Proje başlığı ve açıklaması</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Proje Başlığı</label>
+              <input
+                value={settingsTitle}
+                onChange={e => setSettingsTitle(e.target.value)}
+                className={`w-full bg-slate-900/70 border rounded-xl px-4 py-3 text-white text-sm font-bold outline-none focus:border-blue-500/50 transition-all ${!settingsTitle.trim() ? 'border-red-500/50' : 'border-white/5'}`}
+              />
+              {!settingsTitle.trim() && (
+                <p className="text-[9px] font-black text-red-400 mt-1">Proje başlığı zorunludur.</p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Açıklama</label>
+              <textarea
+                value={settingsDescription}
+                onChange={e => setSettingsDescription(e.target.value)}
+                rows={3}
+                className="w-full bg-slate-900/70 border border-white/5 rounded-xl px-4 py-3 text-white text-sm font-bold outline-none focus:border-blue-500/50 transition-all resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Links */}
+          <div className="bg-[#1e293b]/30 backdrop-blur-md rounded-3xl border border-white/5 p-6 space-y-5">
+            <div>
+              <h3 className="text-sm font-black text-white italic">Bağlantılar</h3>
+              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-0.5">Wiki ve TFS linkleri</p>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Wiki Linki</label>
+              <input
+                value={settingsWikiLinki}
+                onChange={e => setSettingsWikiLinki(e.target.value)}
+                placeholder="https://wiki.example.com/proje"
+                className="w-full bg-slate-900/70 border border-white/5 rounded-xl px-4 py-3 text-white text-sm font-bold outline-none focus:border-blue-500/50 transition-all"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest">TFS Linki</label>
+              <input
+                value={settingsTfsLinki}
+                onChange={e => setSettingsTfsLinki(e.target.value)}
+                placeholder="https://tfs.example.com/proje"
+                className="w-full bg-slate-900/70 border border-white/5 rounded-xl px-4 py-3 text-white text-sm font-bold outline-none focus:border-blue-500/50 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Save Button */}
+          <div className="flex justify-end items-center gap-4">
+            {settingsSaveSuccess && (
+              <span className="text-[9px] font-black text-green-400 uppercase tracking-widest flex items-center gap-1.5 animate-in fade-in duration-300">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                Kaydedildi
+              </span>
+            )}
+            <button
+              onClick={handleSaveSettings}
+              disabled={isSavingSettings || !settingsTitle.trim()}
+              className="px-8 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white shadow-xl shadow-blue-600/20 transition-all disabled:opacity-50"
+            >
+              {isSavingSettings ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}
+            </button>
+          </div>
+
+          {/* Danger Zone */}
+          <div className="bg-red-950/20 backdrop-blur-md rounded-3xl border border-red-500/20 p-6 space-y-4">
+            <div>
+              <h3 className="text-sm font-black text-red-400 italic">Tehlikeli Bölge</h3>
+              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-0.5">Bu işlemler geri alınamaz</p>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-red-950/30 rounded-2xl border border-red-500/10">
+              <div>
+                <p className="text-sm font-black text-white italic">Projeyi Sil</p>
+                <p className="text-[9px] text-slate-500 mt-0.5">Bu projeyi ve tüm ilgili verilerini kalıcı olarak sil.</p>
+              </div>
+              <button
+                onClick={handleDeleteProject}
+                disabled={isDeletingProject}
+                className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-red-600/20"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                {isDeletingProject ? 'Siliniyor...' : 'Projeyi Sil'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
