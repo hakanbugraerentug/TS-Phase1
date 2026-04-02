@@ -43,6 +43,12 @@ public class TeamRepository : ITeamRepository
         return await _collection.Find(filter).ToListAsync();
     }
 
+    public async Task<List<Team>> GetByLeaderAsync(string leaderUsername)
+    {
+        var filter = Builders<Team>.Filter.Eq(t => t.Leader, leaderUsername);
+        return await _collection.Find(filter).ToListAsync();
+    }
+
     public async Task<Team?> UpdateAsync(string id, Team team)
     {
         var filter = Builders<Team>.Filter.Eq(t => t.Id, id);
