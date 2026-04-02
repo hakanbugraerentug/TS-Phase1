@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User } from '../App';
 import { UserAvatar } from './UserAvatar';
+import { isElevatedTitle } from '../utils/titleHelpers';
 
 interface CommentData {
   id: string;
@@ -101,6 +102,8 @@ export const ProjectSummary: React.FC<{ user: User }> = ({ user }) => {
     fetchData();
   }, [apiUrl, user.accessToken]);
 
+  const isElevated = isElevatedTitle(user.title ?? '');
+
   // Find all subordinate usernames (direct reports and their descendants)
   const subordinateUsernames = useMemo((): Set<string> => {
     const currentUserDN = allUsers.find(u => u.username === user.username)?.distinguishedName ?? '';
@@ -120,20 +123,48 @@ export const ProjectSummary: React.FC<{ user: User }> = ({ user }) => {
     return result;
   }, [allUsers, user.username]);
 
-  // Projects where at least one subordinate is a team member or leader
-  const relevantProjects = useMemo((): ProjectData[] => {
-    if (subordinateUsernames.size === 0) return [];
-    const projectIds = new Set<string>();
-    for (const team of allTeams) {
-      const hasSubordinate =
-        subordinateUsernames.has(team.leader) ||
-        team.members.some(m => subordinateUsernames.has(m));
-      if (hasSubordinate && team.projectId) {
-        projectIds.add(team.projectId);
-      }
+  // Teams where the current user is the leader
+  const myLedTeams = useMemo(() => allTeams.filter(t => t.leader === user.username), [allTeams, user.username]);
+
+  // Project IDs from teams the current user leads
+  const myLedProjectIds = useMemo(
+    () => new Set(myLedTeams.map(t => t.projectId).filter((id): id is string => Boolean(id))),
+    [myLedTeams]
+  );
+
+  // Members of teams led by the current user, keyed by projectId
+  const myTeamMembersByProject = useMemo((): Map<string, Set<string>> => {
+    const map = new Map<string, Set<string>>();
+    for (const team of myLedTeams) {
+      if (!team.projectId) continue;
+      const members = map.get(team.projectId) ?? new Set<string>();
+      for (const m of team.members) members.add(m);
+      if (team.leader) members.add(team.leader);
+      map.set(team.projectId, members);
     }
-    return allProjects.filter(p => projectIds.has(p.id));
-  }, [allTeams, allProjects, subordinateUsernames]);
+    return map;
+  }, [myLedTeams]);
+
+  // Projects available for report generation.
+  // Elevated users see all projects where their org-chart subordinates are involved.
+  // Team leaders (non-elevated) see only projects from teams they lead.
+  const relevantProjects = useMemo((): ProjectData[] => {
+    if (isElevated) {
+      if (subordinateUsernames.size === 0) return [];
+      const projectIds = new Set<string>();
+      for (const team of allTeams) {
+        const hasSubordinate =
+          subordinateUsernames.has(team.leader) ||
+          team.members.some(m => subordinateUsernames.has(m));
+        if (hasSubordinate && team.projectId) {
+          projectIds.add(team.projectId);
+        }
+      }
+      return allProjects.filter(p => projectIds.has(p.id));
+    }
+    // Non-elevated users (team leaders): only their own led teams' projects
+    return allProjects.filter(p => myLedProjectIds.has(p.id));
+  }, [allTeams, allProjects, subordinateUsernames, myLedProjectIds, isElevated]);
 
   const generateReport = async () => {
     if (!selectedProjectId) {
@@ -152,13 +183,20 @@ export const ProjectSummary: React.FC<{ user: User }> = ({ user }) => {
       const selectedProject = allProjects.find(p => p.id === selectedProjectId);
       const projectName = selectedProject?.title ?? selectedProjectId;
 
-      // Include all subordinate comments (and the manager's own) in the selected project
-      const targetComments = projectComments.filter(
-        c => subordinateUsernames.has(c.username) || c.username === user.username
-      );
+      // Include comments from relevant users for the selected project.
+      // Elevated users use their org-chart subordinates; team leaders use their team members.
+      const allowedUsernames: Set<string> = isElevated
+        ? new Set([...subordinateUsernames, user.username])
+        : new Set([...(myTeamMembersByProject.get(selectedProjectId) ?? []), user.username]);
+
+      const targetComments = projectComments.filter(c => allowedUsernames.has(c.username));
 
       if (targetComments.length === 0) {
-        throw new Error("Seçilen projede AST'larınızın yorumu bulunamadı. Önce proje yorumları ekleyin.");
+        throw new Error(
+          isElevated
+            ? "Seçilen projede AST'larınızın yorumu bulunamadı. Önce proje yorumları ekleyin."
+            : "Seçilen projede ekip üyelerinizin yorumu bulunamadı. Önce proje yorumları ekleyin."
+        );
       }
 
       const aiComments: AiReportComment[] = targetComments.map(c => ({

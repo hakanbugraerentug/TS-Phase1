@@ -11,6 +11,7 @@ import { ManagerPanel } from './ManagerPanel';
 import { MergeIncomingReports } from './MergeIncomingReports';
 import { HomePage } from './HomePage';
 import { ProjectSummary } from './ProjectSummary';
+import { isElevatedTitle } from '../utils/titleHelpers';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -22,16 +23,6 @@ const TsMiniLogo = () => (
     <span className="text-white font-black text-xl">Ts</span>
   </div>
 );
-
-function isElevatedTitle(title: string): boolean {
-  const t = title.toLowerCase();
-  return (
-    t.includes('müdür') || t.includes('mudur') || t.includes('manager') ||
-    t.includes('direktör') || t.includes('direktor') || t.includes('director') ||
-    t.includes('başkan') || t.includes('baskan') || t.includes('head') ||
-    t.includes('chief') || t.includes('genel müdür') || t.includes('genel mudur')
-  );
-}
 
 export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [activeTab, setActiveTab] = useState('Anasayfa');
@@ -86,6 +77,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   // Elevated users (Müdür and above) now see the ManagerPanel embedded on the HomePage,
   // so the sidebar tab is shown only for non-elevated delegated users.
   const canSeeManagerPanel = !hasElevatedTitle && isDelegated;
+  // Team leaders can generate project-based summaries for their own teams' projects.
+  // Delegated (non-elevated) users also retain access to the project summary feature.
+  const canSeeProjectSummary = !hasElevatedTitle && (isDelegated || (isRoleChecked && isTeamLeader));
 
   const handleProjectSelect = (id: string, title: string) => {
     setSelectedProjectId(id);
@@ -107,6 +101,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     { id: 'NasilKullanilir', name: 'Nasıl Kullanılır', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.85-1.137.193-1.914.97-1.914 1.914v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 4h.008v.008H12v-.008z" /> },
     ...(canSeeManagerPanel ? [
       { id: 'YoneticPanel', name: 'Yönetici Paneli', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2z" /> },
+    ] : []),
+    ...(canSeeProjectSummary ? [
       { id: 'ProjeBazliOzet', name: 'Proje Bazlı Özetleme', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
     ] : []),
     ...(hasElevatedTitle ? [{ id: 'GelenRaporlar', name: 'Gelen Raporları Birleştir', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /> }] : []),
