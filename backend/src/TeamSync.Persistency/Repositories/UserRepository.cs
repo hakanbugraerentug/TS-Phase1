@@ -51,20 +51,29 @@ public class UserRepository : IUserRepository
         var user = await GetByUsernameAsync(username);
         if (user == null) return new List<string>();
 
+        var allUsers = await _context.Users.Find(_ => true).ToListAsync();
+        var byManager = allUsers
+            .Where(u => !string.IsNullOrEmpty(u.Manager))
+            .GroupBy(u => u.Manager)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         var result = new List<string>();
+        var visited = new HashSet<string>();
         var queue = new Queue<string>();
         queue.Enqueue(user.DistinguishedName);
 
         while (queue.Count > 0)
         {
             var dn = queue.Dequeue();
-            var directReports = await _context.Users
-                .Find(u => u.Manager == dn)
-                .ToListAsync();
-            foreach (var report in directReports)
+            if (!visited.Add(dn)) continue;
+
+            if (byManager.TryGetValue(dn, out var directReports))
             {
-                result.Add(report.Username);
-                queue.Enqueue(report.DistinguishedName);
+                foreach (var report in directReports)
+                {
+                    result.Add(report.Username);
+                    queue.Enqueue(report.DistinguishedName);
+                }
             }
         }
 
