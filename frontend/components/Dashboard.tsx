@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Projects } from './Projects';
 import { ProjectDetail } from './ProjectDetail';
@@ -11,6 +10,7 @@ import { HowToUse } from './HowToUse';
 import { ManagerPanel } from './ManagerPanel';
 import { MergeIncomingReports } from './MergeIncomingReports';
 import { HomePage } from './HomePage';
+import { ProjectSummary } from './ProjectSummary';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -37,6 +37,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [activeTab, setActiveTab] = useState('Anasayfa');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showTfsModal, setShowTfsModal] = useState(false);
+  const [showSkypeModal, setShowSkypeModal] = useState(false);
   const [selectedProjectTitle, setSelectedProjectTitle] = useState<string>('');
   const [isTeamLeader, setIsTeamLeader] = useState(false);
   const [isRoleChecked, setIsRoleChecked] = useState(false);
@@ -81,7 +82,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   // Team leadership requires an async API check; hide the tab until the check completes
   // to avoid a flicker for users who are team leaders but have no elevated title.
   const hasElevatedTitle = isElevatedTitle(user.title ?? '');
-  const canSeeReports = hasElevatedTitle || (isRoleChecked && isTeamLeader);
+  const canSeeReports = !hasElevatedTitle && isRoleChecked && isTeamLeader;
   const canSeeManagerPanel = hasElevatedTitle || isDelegated;
 
   const handleProjectSelect = (id: string, title: string) => {
@@ -102,7 +103,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     { id: 'Ekipler', name: 'Ekipler', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /> },
     { id: 'Sema', name: 'Organizasyon Şeması', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /> },
     { id: 'NasilKullanilir', name: 'Nasıl Kullanılır', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.85-1.137.193-1.914.97-1.914 1.914v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 4h.008v.008H12v-.008z" /> },
-    ...(canSeeManagerPanel ? [{ id: 'YoneticPanel', name: 'Yönetici Paneli', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2z" /> }] : []),
+    ...(canSeeManagerPanel ? [
+      { id: 'YoneticPanel', name: 'Yönetici Paneli', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2z" /> },
+      { id: 'ProjeBazliOzet', name: 'Proje Bazlı Özetleme', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
+    ] : []),
     ...(hasElevatedTitle ? [{ id: 'GelenRaporlar', name: 'Gelen Raporları Birleştir', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /> }] : []),
   ];
 
@@ -145,7 +149,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           </nav>
         </div>
 
-        <div className="px-6 pb-4">
+        <div className="px-6 pb-4 flex flex-col gap-3">
           <button
             onClick={() => setShowTfsModal(true)}
             className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest border bg-orange-600/20 border-orange-500/30 text-orange-400 hover:bg-orange-600/30 hover:text-orange-300 transition-all duration-300"
@@ -154,6 +158,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             <span className="truncate">TFS ile Sync Et</span>
+          </button>
+          <button
+            onClick={() => setShowSkypeModal(true)}
+            className="w-full flex items-center gap-3 px-5 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest border bg-[#00AFF0]/20 border-[#00AFF0]/30 text-[#00AFF0] hover:bg-[#00AFF0]/30 hover:text-[#33BFFF] transition-all duration-300"
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12.072 2.048C6.476 2.048 2 6.524 2 12.12a10.026 10.026 0 0 0 2.082 6.08 3.96 3.96 0 0 1-.346 1.742c-.017.07-.03.14-.035.208-.012.094-.021.19-.021.288 0 .95.662 1.682 1.678 1.682a1.72 1.72 0 0 0 .79-.197l.06-.03a4.13 4.13 0 0 1 1.55-.33c.323 0 .648.05.966.15A10.037 10.037 0 0 0 12 22.144c5.596 0 10.072-4.476 10.072-10.072S17.668 2.048 12.072 2.048zm3.44 13.667c-.497.708-1.214 1.254-2.15 1.637-.937.383-2.02.575-3.253.575-1.467 0-2.7-.246-3.697-.738a5.066 5.066 0 0 1-1.58-1.262 2.58 2.58 0 0 1-.642-1.658c0-.474.176-.882.527-1.222.351-.34.8-.51 1.346-.51.443 0 .826.108 1.149.323.323.215.598.53.825.945.255.453.533.835.835 1.146.302.311.675.563 1.12.756.444.193.99.289 1.638.289.93 0 1.685-.2 2.267-.6.582-.4.873-.886.873-1.458 0-.462-.145-.837-.436-1.124-.29-.288-.69-.52-1.2-.697-.509-.177-1.2-.349-2.073-.516-1.17-.215-2.156-.485-2.958-.81-.802-.325-1.427-.776-1.876-1.352-.448-.576-.673-1.286-.673-2.13 0-.805.234-1.51.7-2.116.467-.605 1.135-1.07 2.006-1.394.87-.324 1.892-.487 3.063-.487.935 0 1.748.113 2.438.338.69.225 1.265.524 1.724.898.46.374.8.771 1.02 1.193.22.421.33.843.33 1.265 0 .466-.17.872-.508 1.218-.339.346-.77.52-1.293.52-.468 0-.838-.115-1.11-.344-.272-.23-.537-.584-.794-1.063-.227-.44-.502-.8-.826-1.08-.324-.28-.787-.42-1.39-.42-.808 0-1.458.174-1.95.52-.491.347-.737.762-.737 1.245 0 .3.085.557.254.77.17.213.425.401.766.563.341.163.851.327 1.53.493l.72.166c1.048.236 1.948.496 2.7.78.752.284 1.378.626 1.876 1.025.498.4.87.87 1.117 1.41.247.54.37 1.163.37 1.87 0 .87-.249 1.627-.746 2.335z" />
+            </svg>
+            <span className="truncate">Skype Toplantılarını Raporlaştır</span>
           </button>
         </div>
 
@@ -177,7 +190,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         <header className="h-20 bg-[#0f172a]/90 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-10 shadow-sm sticky top-0 z-10 flex-shrink-0">
           <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
-            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'YoneticPanel' ? 'Yönetici Paneli' : activeTab === 'GelenRaporlar' ? 'Gelen Raporları Birleştir' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab}
+            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'YoneticPanel' ? 'Yönetici Paneli' : activeTab === 'ProjeBazliOzet' ? 'Proje Bazlı Özetleme' : activeTab === 'GelenRaporlar' ? 'Gelen Raporları Birleştir' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab}
           </span>
           <img 
             src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Yap%C4%B1_Kredi_logo.svg/1024px-Yap%C4%B1_Kredi_logo.svg.png" 
@@ -203,6 +216,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
             <HowToUse user={user} />
           ) : activeTab === 'YoneticPanel' ? (
             <ManagerPanel user={user} />
+          ) : activeTab === 'ProjeBazliOzet' ? (
+            <ProjectSummary user={user} />
           ) : activeTab === 'GelenRaporlar' ? (
             <MergeIncomingReports user={user} />
           ) : null}
@@ -232,6 +247,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
             <button
               onClick={() => setShowTfsModal(false)}
               className="px-8 py-2.5 rounded-xl bg-orange-600/20 border border-orange-500/30 text-orange-400 hover:bg-orange-600/30 hover:text-orange-300 font-black text-[10px] uppercase tracking-widest transition-all duration-300"
+            >
+              Kapat
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showSkypeModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setShowSkypeModal(false)}
+        >
+          <div
+            className="bg-[#0f172a] border border-[#00AFF0]/30 rounded-2xl p-10 shadow-2xl flex flex-col items-center gap-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 bg-[#00AFF0]/20 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-[#00AFF0]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12.072 2.048C6.476 2.048 2 6.524 2 12.12a10.026 10.026 0 0 0 2.082 6.08 3.96 3.96 0 0 1-.346 1.742c-.017.07-.03.14-.035.208-.012.094-.021.19-.021.288 0 .95.662 1.682 1.678 1.682a1.72 1.72 0 0 0 .79-.197l.06-.03a4.13 4.13 0 0 1 1.55-.33c.323 0 .648.05.966.15A10.037 10.037 0 0 0 12 22.144c5.596 0 10.072-4.476 10.072-10.072S17.668 2.048 12.072 2.048zm3.44 13.667c-.497.708-1.214 1.254-2.15 1.637-.937.383-2.02.575-3.253.575-1.467 0-2.7-.246-3.697-.738a5.066 5.066 0 0 1-1.58-1.262 2.58 2.58 0 0 1-.642-1.658c0-.474.176-.882.527-1.222.351-.34.8-.51 1.346-.51.443 0 .826.108 1.149.323.323.215.598.53.825.945.255.453.533.835.835 1.146.302.311.675.563 1.12.756.444.193.99.289 1.638.289.93 0 1.685-.2 2.267-.6.582-.4.873-.886.873-1.458 0-.462-.145-.837-.436-1.124-.29-.288-.69-.52-1.2-.697-.509-.177-1.2-.349-2.073-.516-1.17-.215-2.156-.485-2.958-.81-.802-.325-1.427-.776-1.876-1.352-.448-.576-.673-1.286-.673-2.13 0-.805.234-1.51.7-2.116.467-.605 1.135-1.07 2.006-1.394.87-.324 1.892-.487 3.063-.487.935 0 1.748.113 2.438.338.69.225 1.265.524 1.724.898.46.374.8.771 1.02 1.193.22.421.33.843.33 1.265 0 .466-.17.872-.508 1.218-.339.346-.77.52-1.293.52-.468 0-.838-.115-1.11-.344-.272-.23-.537-.584-.794-1.063-.227-.44-.502-.8-.826-1.08-.324-.28-.787-.42-1.39-.42-.808 0-1.458.174-1.95.52-.491.347-.737.762-.737 1.245 0 .3.085.557.254.77.17.213.425.401.766.563.341.163.851.327 1.53.493l.72.166c1.048.236 1.948.496 2.7.78.752.284 1.378.626 1.876 1.025.498.4.87.87 1.117 1.41.247.54.37 1.163.37 1.87 0 .87-.249 1.627-.746 2.335z" />
+              </svg>
+            </div>
+            <p className="text-slate-200 font-black text-lg tracking-wide">Çok Yakında</p>
+            <button
+              onClick={() => setShowSkypeModal(false)}
+              className="px-8 py-2.5 rounded-xl bg-[#00AFF0]/20 border border-[#00AFF0]/30 text-[#00AFF0] hover:bg-[#00AFF0]/30 hover:text-[#33BFFF] font-black text-[10px] uppercase tracking-widest transition-all duration-300"
             >
               Kapat
             </button>
