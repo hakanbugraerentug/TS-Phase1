@@ -89,6 +89,8 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
   const [wikiLinki, setWikiLinki] = useState('');
   const [tfsLinki, setTfsLinki] = useState('');
 
+  const [searchQuery, setSearchQuery] = useState('');
+
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
   const fetchProjects = async () => {
@@ -297,7 +299,7 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-      <div className="mb-10 flex justify-between items-center">
+      <div className="mb-6 flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-black text-white tracking-tight italic">Projelerim</h2>
           <p className="text-slate-500 text-[9px] font-bold uppercase tracking-[0.2em] mt-1 border-l-2 border-blue-600 pl-3">Sorumluluğunuzdaki Kayıtlar</p>
@@ -314,6 +316,31 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
           </div>
           <span className="text-[10px] font-black text-white uppercase tracking-widest">Yeni Proje Ekle</span>
         </button>
+      </div>
+
+      <div className="mb-8 relative">
+        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+        </div>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Proje ara..."
+          className="w-full pl-11 pr-4 py-3 bg-[#1e293b]/40 backdrop-blur-md border border-white/10 rounded-2xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-[#1e293b]/60 transition-all"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute inset-y-0 right-4 flex items-center text-slate-500 hover:text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* 4-Step Wizard Modal */}
@@ -671,8 +698,22 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
           <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Henüz proje bulunmuyor.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {projects.map((project, idx) => (
+        (() => {
+          const q = searchQuery.trim().toLowerCase();
+          const filtered = q
+            ? projects.filter(p =>
+                p.title.toLowerCase().includes(q) ||
+                (p.description || '').toLowerCase().includes(q) ||
+                (p.owner || '').toLowerCase().includes(q)
+              )
+            : projects;
+          return filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-40 opacity-40">
+              <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">Aramanızla eşleşen proje bulunamadı.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {filtered.map((project, idx) => (
             <div 
               key={project.id || idx} 
               onClick={() => onSelectProject(project.id, project.title)}
@@ -752,8 +793,10 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+              ))}
+            </div>
+          );
+        })()
       )}
     </div>
   );
