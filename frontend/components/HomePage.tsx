@@ -199,7 +199,7 @@ export const HomePage: React.FC<HomePageProps> = ({ user, onNavigateToProjects, 
       {/* ── Welcome banner ── */}
       <div className="text-5xl font-black tracking-tight text-white leading-tight">
         Hoşgeldin,{' '}
-        <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+        <span className="text-blue-300">
           {user.name}
         </span>{' '}
         👋
