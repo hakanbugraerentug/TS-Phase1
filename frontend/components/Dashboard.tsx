@@ -125,8 +125,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
                   setSelectedProjectId(null);
                 }}
                 className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-xl transition-all duration-300 font-black text-[10px] uppercase tracking-widest border ${
-                  activeTab === item.id 
-                    ? 'bg-blue-600 border-blue-50 shadow-lg'
+                  activeTab === item.id && item.id === 'NasilKullanilir'
+                    ? 'bg-violet-600 border-violet-400/50 shadow-lg text-white'
+                    : activeTab === item.id
+                    ? 'bg-blue-600 border-blue-500/50 shadow-lg'
+                    : item.id === 'NasilKullanilir'
+                    ? 'text-violet-400 border-violet-500/20 hover:bg-violet-600/10 hover:text-violet-300'
                     : 'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'
                 }`}
               >
