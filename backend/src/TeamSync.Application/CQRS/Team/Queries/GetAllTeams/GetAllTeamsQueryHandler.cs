@@ -23,14 +23,13 @@ public class GetAllTeamsQueryHandler
 
         if (TitleHelper.IsElevatedTitle(requesterTitle))
         {
-            var subordinates = await _userRepository.GetSubordinatesAsync(query.RequesterUsername);
-            var visibleUsernames = new HashSet<string>(subordinates) { query.RequesterUsername };
-
             var allTeams = await _teamRepository.GetAllAsync();
-            var filteredTeams = allTeams
-                .Where(t => t.Members.Any(m => visibleUsernames.Contains(m)))
-                .ToList();
-            return filteredTeams.Select(TeamMapper.ToDto).ToList();
+            return allTeams.Select(TeamMapper.ToDto).ToList();
+        }
+        else if (TitleHelper.IsTeamLeaderTitle(requesterTitle))
+        {
+            var teams = await _teamRepository.GetByLeaderAsync(query.RequesterUsername);
+            return teams.Select(TeamMapper.ToDto).ToList();
         }
         else
         {
