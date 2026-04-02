@@ -31,6 +31,24 @@ interface AppUser {
 
 const UNIT_TYPES = ['Yazılım', 'Donanım', 'Mekanik', 'Sistem'];
 
+// Returns the Monday (00:00:00) of the week containing the given date
+const getWeekStart = (d: Date): Date => {
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
+// Formats a week as "DD MMM – DD MMM YYYY" in Turkish locale
+const formatWeekLabel = (monday: Date): string => {
+  const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
+  const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+  const yearOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+  return `${monday.toLocaleDateString('tr-TR', opts)} – ${sunday.toLocaleDateString('tr-TR', yearOpts)}`;
+};
+
 type DetailTab = 'comments' | 'details';
 
 export const ProjectDetail: React.FC<{
@@ -40,24 +58,6 @@ export const ProjectDetail: React.FC<{
   user: User;
 }> = ({ projectId, projectTitle, onBack, user }) => {
   const [activeTab, setActiveTab] = useState<DetailTab>('comments');
-
-  // Week filter helpers
-  const getWeekStart = (d: Date): Date => {
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day; // Monday = week start
-    const monday = new Date(d);
-    monday.setDate(d.getDate() + diff);
-    monday.setHours(0, 0, 0, 0);
-    return monday;
-  };
-
-  const formatWeekLabel = (monday: Date): string => {
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
-    const yearOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' };
-    return `${monday.toLocaleDateString('tr-TR', opts)} – ${sunday.toLocaleDateString('tr-TR', yearOpts)}`;
-  };
 
   // Comments tab
   const [comments, setComments] = useState<Comment[]>([]);
@@ -99,8 +99,7 @@ export const ProjectDetail: React.FC<{
   // Comments visible in the selected week
   const filteredComments = React.useMemo(() => {
     const start = selectedWeekStart;
-    const end = new Date(start);
-    end.setDate(start.getDate() + 7);
+    const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
     return comments.filter(c => c.rawDate >= start && c.rawDate < end);
   }, [comments, selectedWeekStart]);
 
