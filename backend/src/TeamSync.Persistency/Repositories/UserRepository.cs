@@ -46,6 +46,40 @@ public class UserRepository : IUserRepository
         return await _context.Users.Find(_ => true).ToListAsync();
     }
 
+    public async Task<List<string>> GetSubordinatesAsync(string username)
+    {
+        var user = await GetByUsernameAsync(username);
+        if (user == null) return new List<string>();
+
+        var allUsers = await _context.Users.Find(_ => true).ToListAsync();
+        var byManager = allUsers
+            .Where(u => !string.IsNullOrEmpty(u.Manager))
+            .GroupBy(u => u.Manager)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var result = new List<string>();
+        var visited = new HashSet<string>();
+        var queue = new Queue<string>();
+        queue.Enqueue(user.DistinguishedName);
+
+        while (queue.Count > 0)
+        {
+            var dn = queue.Dequeue();
+            if (!visited.Add(dn)) continue;
+
+            if (byManager.TryGetValue(dn, out var directReports))
+            {
+                foreach (var report in directReports)
+                {
+                    result.Add(report.Username);
+                    queue.Enqueue(report.DistinguishedName);
+                }
+            }
+        }
+
+        return result;
+    }
+
     public async Task<object?> GetOrgChartAsync(string username)
     {
         var activeUser = await _context.Users.Find(u => u.Username == username).FirstOrDefaultAsync();
