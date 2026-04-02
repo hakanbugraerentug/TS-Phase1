@@ -10,16 +10,18 @@ const NODE_H = 88;
 const H_GAP = 24;
 const V_GAP = 56;
 const CONNECTOR_H = 28;
+const MAX_PER_ROW = 5;
 
-// ─── Color Palette ───────────────────────────────────────────────────────────
+// ─── Layer Color Palette ─────────────────────────────────────────────────────
+// Each hierarchical layer gets its own distinct color.
 
-const GROUP_COLORS = [
-  { bg: 'bg-blue-900/60',    border: 'border-blue-500',    text: 'text-blue-300',    dot: 'bg-blue-500',    hex: '#3b82f6' },
-  { bg: 'bg-emerald-900/60', border: 'border-emerald-500', text: 'text-emerald-300', dot: 'bg-emerald-500', hex: '#10b981' },
-  { bg: 'bg-violet-900/60',  border: 'border-violet-500',  text: 'text-violet-300',  dot: 'bg-violet-500',  hex: '#8b5cf6' },
-  { bg: 'bg-amber-900/60',   border: 'border-amber-500',   text: 'text-amber-300',   dot: 'bg-amber-500',   hex: '#f59e0b' },
-  { bg: 'bg-rose-900/60',    border: 'border-rose-500',    text: 'text-rose-300',    dot: 'bg-rose-500',    hex: '#f43f5e' },
-];
+const LAYER_COLORS = {
+  manager:     { bg: 'bg-amber-900/60',   border: 'border-amber-500',   text: 'text-amber-300',   dot: 'bg-amber-500',   connector: 'bg-amber-700/60',   hex: '#f59e0b', label: 'Yöneticiler' },
+  teamLeader:  { bg: 'bg-violet-900/60',  border: 'border-violet-500',  text: 'text-violet-300',  dot: 'bg-violet-500',  connector: 'bg-violet-700/60',  hex: '#8b5cf6', label: 'Ekip Liderleri' },
+  sibling:     { bg: 'bg-slate-800/80',   border: 'border-slate-600',   text: 'text-slate-300',   dot: 'bg-slate-500',   connector: 'bg-slate-700',      hex: '#64748b', label: 'Aynı Seviye' },
+  subordinate: { bg: 'bg-emerald-900/60', border: 'border-emerald-500', text: 'text-emerald-300', dot: 'bg-emerald-500', connector: 'bg-emerald-700/40', hex: '#10b981', label: 'Astlar' },
+  teamMember:  { bg: 'bg-rose-900/60',    border: 'border-rose-500',    text: 'text-rose-300',    dot: 'bg-rose-500',    connector: 'bg-rose-700/40',    hex: '#f43f5e', label: 'Ekip Üyeleri' },
+} as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,6 +59,7 @@ interface NodeData {
   distinguishedName: string;
   isActiveUser: boolean;
   colorStyle?: { bg: string; border: string; text: string };
+  teamLabels?: string[];
 }
 
 interface TeamDto {
@@ -102,13 +105,6 @@ function detectRole(title: string): RoleType {
   return 'other';
 }
 
-function getGroupKey(u: { department: string; directorate: string; sector: string }, role: RoleType): string {
-  if (role === 'department_manager') return u.department;
-  if (role === 'directorate_director') return u.directorate;
-  if (role === 'sector_head') return u.sector;
-  return u.department;
-}
-
 function flattenManagerChain(node: OrgChartData): OrgChartData[] {
   const chain: OrgChartData[] = [];
   let cur: OrgChartData | null | undefined = node.manager;
@@ -117,6 +113,14 @@ function flattenManagerChain(node: OrgChartData): OrgChartData[] {
     cur = cur.manager;
   }
   return chain;
+}
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
 }
 
 const MS_PER_DAY = 86400000;
@@ -248,6 +252,63 @@ const PersonNode: React.FC<PersonNodeProps> = ({ node, accessToken, isSubordinat
           ))}
         </div>
       )}
+      {node.teamLabels && node.teamLabels.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {node.teamLabels.map((label, i) => (
+            <span key={i} className="text-[8px] font-black bg-violet-500/20 text-violet-300 border border-violet-500/40 px-2 py-0.5 rounded-full">
+              🔗 {label}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── NodeRow ─────────────────────────────────────────────────────────────────
+// Renders a list of nodes in wrapped rows, max MAX_PER_ROW per row.
+
+interface NodeRowProps {
+  nodes: NodeData[];
+  connectorClass: string;
+  accessToken: string;
+  isSubordinate?: boolean;
+  onViewReport?: (username: string) => void;
+  allTeams?: TeamDto[];
+}
+
+const NodeRow: React.FC<NodeRowProps> = ({ nodes, connectorClass, accessToken, isSubordinate, onViewReport, allTeams }) => {
+  const chunks = chunkArray<NodeData>(nodes, MAX_PER_ROW);
+  return (
+    <div className="flex flex-col items-center">
+      {chunks.map((chunk, ci) => (
+        <React.Fragment key={ci}>
+          {ci > 0 && <div className={connectorClass} style={{ width: 1, height: V_GAP }} />}
+          <div className="relative flex items-start" style={{ gap: H_GAP }}>
+            {chunk.length > 1 && (() => {
+              const totalWidth = chunk.length * NODE_W + (chunk.length - 1) * H_GAP;
+              return (
+                <div
+                  className={`absolute pointer-events-none ${connectorClass}`}
+                  style={{ top: -1, left: NODE_W / 2, width: totalWidth - NODE_W, height: 1 }}
+                />
+              );
+            })()}
+            {chunk.map((node, idx) => (
+              <div key={node.username || idx} className="flex flex-col items-center">
+                <div className={connectorClass} style={{ width: 1, height: CONNECTOR_H }} />
+                <PersonNode
+                  node={node}
+                  accessToken={accessToken}
+                  isSubordinate={isSubordinate}
+                  onViewReport={onViewReport}
+                  allTeams={allTeams}
+                />
+              </div>
+            ))}
+          </div>
+        </React.Fragment>
+      ))}
     </div>
   );
 };
@@ -314,55 +375,14 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
     return allUsers.filter(u => u.manager === orgData.distinguishedName);
   }, [orgData, allUsers]);
 
-  // Role-based color assignments
-  const colorData = useMemo(() => {
-    if (!orgData) return { groupColorMap: new Map<string, number>(), roleType: 'other' as RoleType, colorGroups: [] as { groupKey: string; colorIdx: number; label: string }[] };
-
-    const roleType = detectRole(orgData.title);
-    const activeGroupKey = getGroupKey(orgData, roleType);
-
-    const groupColorMap = new Map<string, number>();
-    const colorGroups: { groupKey: string; colorIdx: number; label: string }[] = [];
-    let colorIdx = 0;
-
-    const getLabel = (key: string) => {
-      if (roleType === 'department_manager') return `${key} Müdürlüğü`;
-      if (roleType === 'directorate_director') return `${key} Direktörlüğü`;
-      if (roleType === 'sector_head') return `${key} Sektör Başkanlığı`;
-      return key;
-    };
-
-    if (activeGroupKey) {
-      groupColorMap.set(activeGroupKey, 0);
-      colorGroups.push({ groupKey: activeGroupKey, colorIdx: 0, label: getLabel(activeGroupKey) });
-      colorIdx = 1;
-    }
-
-    orgData.siblings.forEach(s => {
-      const gk = getGroupKey(s, roleType);
-      if (gk && !groupColorMap.has(gk)) {
-        const ci = colorIdx % GROUP_COLORS.length;
-        groupColorMap.set(gk, ci);
-        colorGroups.push({ groupKey: gk, colorIdx: ci, label: getLabel(gk) });
-        colorIdx++;
-      }
-    });
-
-    subordinates.forEach(s => {
-      const gk = getGroupKey(s, roleType);
-      if (gk && !groupColorMap.has(gk)) {
-        const ci = colorIdx % GROUP_COLORS.length;
-        groupColorMap.set(gk, ci);
-        colorGroups.push({ groupKey: gk, colorIdx: ci, label: getLabel(gk) });
-        colorIdx++;
-      }
-    });
-
-    return { groupColorMap, roleType, colorGroups };
-  }, [orgData, subordinates]);
+  // Role detection only — layer colors are now fixed per level
+  const roleType = useMemo((): RoleType => {
+    if (!orgData) return 'other';
+    return detectRole(orgData.title);
+  }, [orgData]);
 
   // Leader layer computations — kept before early returns so hooks are unconditional
-  const isDeptManagerPre = colorData.roleType === 'department_manager';
+  const isDeptManagerPre = roleType === 'department_manager';
   const leaderSubsPre = isDeptManagerPre
     ? subordinates.filter(s => allTeams.some(t => t.leader === s.username))
     : [];
@@ -370,6 +390,30 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
     ? subordinates.filter(s => !allTeams.some(t => t.leader === s.username))
     : subordinates;
   const hasLeaderLayerPre = isDeptManagerPre && leaderSubsPre.length > 0;
+
+  // For engineers: find teams where this user is a member and surface their leaders
+  interface TeamLeaderInfo {
+    user: OrgUser;
+    teamTitles: string[];
+  }
+
+  const myTeamLeaderInfos = useMemo((): TeamLeaderInfo[] => {
+    if (!orgData || roleType !== 'other') return [];
+    const leaderMap = new Map<string, string[]>();
+    for (const team of allTeams) {
+      if (team.members.includes(orgData.username) && team.leader !== orgData.username) {
+        const titles = leaderMap.get(team.leader) || [];
+        titles.push(team.title);
+        leaderMap.set(team.leader, titles);
+      }
+    }
+    const result: TeamLeaderInfo[] = [];
+    for (const [leaderUsername, teamTitles] of leaderMap.entries()) {
+      const leaderUser = allUsers.find(u => u.username === leaderUsername);
+      if (leaderUser) result.push({ user: leaderUser, teamTitles });
+    }
+    return result;
+  }, [orgData, allTeams, allUsers, roleType]);
 
   const membersByLeader = useMemo(() => {
     if (!hasLeaderLayerPre) return new Map<string, OrgUser[]>();
@@ -433,29 +477,22 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
 
   if (!orgData) return null;
 
-  const { groupColorMap, roleType, colorGroups } = colorData;
-
-  const getNodeColorStyle = (node: { department: string; directorate: string; sector: string }) => {
-    const gk = getGroupKey(node, roleType);
-    const ci = groupColorMap.get(gk);
-    if (ci === undefined) return undefined;
-    const c = GROUP_COLORS[ci];
-    return { bg: c.bg, border: c.border, text: c.text };
-  };
-
   // Manager chain
   const managerChain = flattenManagerChain(orgData);
 
-  // Siblings split — active user centered
+  // Siblings split — active user centered (when total fits in a row)
   const siblings = orgData.siblings;
-  const leftSiblings = siblings.slice(0, Math.ceil(siblings.length / 2));
-  const rightSiblings = siblings.slice(Math.ceil(siblings.length / 2));
-
-  const activeNodeData: NodeData = {
-    ...orgData,
-    isActiveUser: true,
-    colorStyle: getNodeColorStyle(orgData),
-  };
+  const totalSiblingRow = siblings.length + 1;
+  const centeringActive = totalSiblingRow <= MAX_PER_ROW;
+  const leftSiblings = centeringActive ? siblings.slice(0, Math.ceil(siblings.length / 2)) : [];
+  const rightSiblings = centeringActive ? siblings.slice(Math.ceil(siblings.length / 2)) : [];
+  // When too many siblings, render all together with wrapping (active user first)
+  const allSiblingNodes: NodeData[] = centeringActive
+    ? []
+    : [
+        { ...orgData, isActiveUser: true },
+        ...siblings.map(s => ({ ...s, isActiveUser: false, colorStyle: { bg: LAYER_COLORS.sibling.bg, border: LAYER_COLORS.sibling.border, text: LAYER_COLORS.sibling.text } })),
+      ];
 
   const hasSubordinates = subordinates.length > 0;
 
@@ -469,6 +506,16 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
   const directSubs = isDeptManager
     ? nonLeaderSubs.filter(sub => getLeadersForMember(sub.username, leaderSubs, allTeams).length === 0)
     : [];
+
+  // Build the legend layers visible in this chart (no duplicates)
+  const showTeamLeader = myTeamLeaderInfos.length > 0 || hasLeaderLayer;
+  const legendLayers: Array<{ key: keyof typeof LAYER_COLORS; label: string }> = [
+    { key: 'manager', label: LAYER_COLORS.manager.label },
+    ...(showTeamLeader ? [{ key: 'teamLeader' as const, label: LAYER_COLORS.teamLeader.label }] : []),
+    ...(siblings.length > 0 ? [{ key: 'sibling' as const, label: LAYER_COLORS.sibling.label }] : []),
+    ...(hasSubordinates ? [{ key: 'subordinate' as const, label: LAYER_COLORS.subordinate.label }] : []),
+    ...(hasLeaderLayer ? [{ key: 'teamMember' as const, label: LAYER_COLORS.teamMember.label }] : []),
+  ];
 
   const weekOptions = generateWeekOptions(16);
 
@@ -490,14 +537,19 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
           </select>
         </div>
 
-        {/* Legend */}
-        {colorGroups.length > 0 && (
+        {/* Legend — hierarchical layers */}
+        {legendLayers.length > 0 && (
           <div className="bg-[#1e293b]/90 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col gap-2 min-w-[180px]">
             <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Renk Göstergesi</p>
-            {colorGroups.map(g => (
-              <div key={g.groupKey} className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${GROUP_COLORS[g.colorIdx].dot}`} />
-                <span className="text-[10px] font-bold text-slate-300 italic truncate">{g.label}</span>
+            {/* Active user row */}
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full flex-shrink-0 bg-blue-500" />
+              <span className="text-[10px] font-bold text-slate-300 italic truncate">Sen</span>
+            </div>
+            {legendLayers.map(l => (
+              <div key={l.key} className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${LAYER_COLORS[l.key].dot}`} />
+                <span className="text-[10px] font-bold text-slate-300 italic truncate">{l.label}</span>
               </div>
             ))}
           </div>
@@ -507,182 +559,164 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
       {/* Tree */}
       <div className="min-w-max min-h-max flex flex-col items-center py-12 px-16">
 
-        {/* Manager chain */}
+        {/* Manager chain — amber layer */}
         {managerChain.map((mgr, idx) => (
           <React.Fragment key={mgr.username || idx}>
             <PersonNode
-              node={{ ...mgr, isActiveUser: false }}
+              node={{ ...mgr, isActiveUser: false, colorStyle: { bg: LAYER_COLORS.manager.bg, border: LAYER_COLORS.manager.border, text: LAYER_COLORS.manager.text } }}
               accessToken={user.accessToken}
             />
             <div
-              className="bg-slate-700"
+              className={LAYER_COLORS.manager.connector}
               style={{ width: 1, height: V_GAP + CONNECTOR_H }}
             />
           </React.Fragment>
         ))}
 
-        {/* Sibling row — horizontal line connector */}
-        <div className="relative flex items-start" style={{ gap: H_GAP }}>
-          {siblings.length > 0 && (() => {
-            const totalNodes = siblings.length + 1;
-            const totalWidth = totalNodes * NODE_W + (totalNodes - 1) * H_GAP;
-            return (
-              <div
-                className="absolute bg-slate-700 pointer-events-none"
-                style={{
-                  top: -1,
-                  left: NODE_W / 2,
-                  width: totalWidth - NODE_W,
-                  height: 1,
-                }}
-              />
-            );
-          })()}
+        {/* Intermediate team-leader layer (engineer case) — violet layer */}
+        {myTeamLeaderInfos.length > 0 && (
+          <>
+            <NodeRow
+              nodes={myTeamLeaderInfos.map(info => ({
+                ...info.user,
+                isActiveUser: false,
+                colorStyle: { bg: LAYER_COLORS.teamLeader.bg, border: LAYER_COLORS.teamLeader.border, text: LAYER_COLORS.teamLeader.text },
+                teamLabels: info.teamTitles,
+              }))}
+              connectorClass={LAYER_COLORS.teamLeader.connector}
+              accessToken={user.accessToken}
+            />
+            <div className={LAYER_COLORS.teamLeader.connector} style={{ width: 1, height: V_GAP }} />
+          </>
+        )}
 
-          {/* Left siblings */}
-          {leftSiblings.map((s, idx) => (
-            <div key={s.username || idx} className="flex flex-col items-center">
-              <div className="bg-slate-700" style={{ width: 1, height: CONNECTOR_H }} />
-              <PersonNode
-                node={{ ...s, isActiveUser: false, colorStyle: getNodeColorStyle(s) }}
-                accessToken={user.accessToken}
-              />
+        {/* Sibling row — slate layer for siblings, blue for active user */}
+        {centeringActive ? (
+          <div className="relative flex items-start" style={{ gap: H_GAP }}>
+            {siblings.length > 0 && (() => {
+              const totalNodes = siblings.length + 1;
+              const totalWidth = totalNodes * NODE_W + (totalNodes - 1) * H_GAP;
+              return (
+                <div
+                  className={`absolute ${LAYER_COLORS.sibling.connector} pointer-events-none`}
+                  style={{ top: -1, left: NODE_W / 2, width: totalWidth - NODE_W, height: 1 }}
+                />
+              );
+            })()}
+
+            {/* Left siblings */}
+            {leftSiblings.map((s, idx) => (
+              <div key={s.username || idx} className="flex flex-col items-center">
+                <div className={LAYER_COLORS.sibling.connector} style={{ width: 1, height: CONNECTOR_H }} />
+                <PersonNode
+                  node={{ ...s, isActiveUser: false, colorStyle: { bg: LAYER_COLORS.sibling.bg, border: LAYER_COLORS.sibling.border, text: LAYER_COLORS.sibling.text } }}
+                  accessToken={user.accessToken}
+                />
+              </div>
+            ))}
+
+            {/* Active user */}
+            <div className="flex flex-col items-center">
+              <div className="bg-blue-500/60" style={{ width: 1, height: CONNECTOR_H }} />
+              <PersonNode node={{ ...orgData, isActiveUser: true }} accessToken={user.accessToken} />
             </div>
-          ))}
 
-          {/* Active user */}
-          <div className="flex flex-col items-center">
-            <div className="bg-blue-500/60" style={{ width: 1, height: CONNECTOR_H }} />
-            <PersonNode node={activeNodeData} accessToken={user.accessToken} />
+            {/* Right siblings */}
+            {rightSiblings.map((s, idx) => (
+              <div key={s.username || idx} className="flex flex-col items-center">
+                <div className={LAYER_COLORS.sibling.connector} style={{ width: 1, height: CONNECTOR_H }} />
+                <PersonNode
+                  node={{ ...s, isActiveUser: false, colorStyle: { bg: LAYER_COLORS.sibling.bg, border: LAYER_COLORS.sibling.border, text: LAYER_COLORS.sibling.text } }}
+                  accessToken={user.accessToken}
+                />
+              </div>
+            ))}
           </div>
-
-          {/* Right siblings */}
-          {rightSiblings.map((s, idx) => (
-            <div key={s.username || idx} className="flex flex-col items-center">
-              <div className="bg-slate-700" style={{ width: 1, height: CONNECTOR_H }} />
-              <PersonNode
-                node={{ ...s, isActiveUser: false, colorStyle: getNodeColorStyle(s) }}
-                accessToken={user.accessToken}
-              />
-            </div>
-          ))}
-        </div>
+        ) : (
+          /* Too many siblings — wrapped rows, active user first */
+          <NodeRow
+            nodes={allSiblingNodes}
+            connectorClass={LAYER_COLORS.sibling.connector}
+            accessToken={user.accessToken}
+          />
+        )}
 
         {/* Subordinates */}
         {hasSubordinates && (
           <>
             {/* Vertical line from active user down */}
-            <div className="bg-slate-700/60" style={{ width: 1, height: V_GAP }} />
+            <div className={LAYER_COLORS.subordinate.connector} style={{ width: 1, height: V_GAP }} />
 
             {hasLeaderLayer ? (
               <>
-                {/* Leader layer */}
-                <div className="relative flex items-start" style={{ gap: H_GAP }}>
-                  {leaderSubs.length > 1 && (() => {
-                    const totalWidth = leaderSubs.length * NODE_W + (leaderSubs.length - 1) * H_GAP;
-                    return (
-                      <div
-                        className="absolute bg-slate-700/60 pointer-events-none"
-                        style={{ top: -1, left: NODE_W / 2, width: totalWidth - NODE_W, height: 1 }}
-                      />
-                    );
-                  })()}
-                  {leaderSubs.map((ls, idx) => (
-                    <div key={ls.username || idx} className="flex flex-col items-center">
-                      <div className="bg-slate-700/60" style={{ width: 1, height: CONNECTOR_H }} />
-                      <PersonNode
-                        node={{ ...ls, isActiveUser: false, colorStyle: getNodeColorStyle(ls) }}
+                {/* Leader layer — violet */}
+                <NodeRow
+                  nodes={leaderSubs.map(ls => ({
+                    ...ls,
+                    isActiveUser: false,
+                    colorStyle: { bg: LAYER_COLORS.teamLeader.bg, border: LAYER_COLORS.teamLeader.border, text: LAYER_COLORS.teamLeader.text },
+                  }))}
+                  connectorClass={LAYER_COLORS.teamLeader.connector}
+                  accessToken={user.accessToken}
+                  isSubordinate
+                  onViewReport={handleViewReport}
+                  allTeams={allTeams}
+                />
+
+                {/* Each leader's team members — rose */}
+                {leaderSubs.map(ls => {
+                  const members = membersByLeader.get(ls.username) || [];
+                  if (members.length === 0) return null;
+                  return (
+                    <React.Fragment key={ls.username}>
+                      <div className={LAYER_COLORS.teamMember.connector} style={{ width: 1, height: V_GAP }} />
+                      <NodeRow
+                        nodes={members.map(m => ({
+                          ...m,
+                          isActiveUser: false,
+                          colorStyle: { bg: LAYER_COLORS.teamMember.bg, border: LAYER_COLORS.teamMember.border, text: LAYER_COLORS.teamMember.text },
+                        }))}
+                        connectorClass={LAYER_COLORS.teamMember.connector}
                         accessToken={user.accessToken}
                         isSubordinate
                         onViewReport={handleViewReport}
                         allTeams={allTeams}
                       />
-                      {/* Leader's team members */}
-                      {(membersByLeader.get(ls.username) || []).length > 0 && (
-                        <>
-                          <div className="bg-slate-700/40" style={{ width: 1, height: V_GAP }} />
-                          <div className="relative flex items-start" style={{ gap: H_GAP }}>
-                            {(membersByLeader.get(ls.username) || []).length > 1 && (() => {
-                              const members = membersByLeader.get(ls.username) || [];
-                              const totalWidth = members.length * NODE_W + (members.length - 1) * H_GAP;
-                              return (
-                                <div
-                                  className="absolute bg-slate-700/40 pointer-events-none"
-                                  style={{ top: -1, left: NODE_W / 2, width: totalWidth - NODE_W, height: 1 }}
-                                />
-                              );
-                            })()}
-                            {(membersByLeader.get(ls.username) || []).map((member, midx) => (
-                              <div key={member.username || midx} className="flex flex-col items-center">
-                                <div className="bg-slate-700/40" style={{ width: 1, height: CONNECTOR_H }} />
-                                <PersonNode
-                                  node={{ ...member, isActiveUser: false, colorStyle: getNodeColorStyle(member) }}
-                                  accessToken={user.accessToken}
-                                  isSubordinate
-                                  onViewReport={handleViewReport}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                    </React.Fragment>
+                  );
+                })}
 
-                {/* Direct subordinates (no leader connection) */}
+                {/* Direct subordinates (no leader connection) — emerald */}
                 {directSubs.length > 0 && (
                   <>
-                    <div className="bg-slate-700/40 mt-4" style={{ width: 1, height: V_GAP }} />
-                    <div className="relative flex items-start" style={{ gap: H_GAP }}>
-                      {directSubs.length > 1 && (() => {
-                        const totalWidth = directSubs.length * NODE_W + (directSubs.length - 1) * H_GAP;
-                        return (
-                          <div
-                            className="absolute bg-slate-700/40 pointer-events-none"
-                            style={{ top: -1, left: NODE_W / 2, width: totalWidth - NODE_W, height: 1 }}
-                          />
-                        );
-                      })()}
-                      {directSubs.map((sub, idx) => (
-                        <div key={sub.username || idx} className="flex flex-col items-center">
-                          <div className="bg-slate-700/40" style={{ width: 1, height: CONNECTOR_H }} />
-                          <PersonNode
-                            node={{ ...sub, isActiveUser: false, colorStyle: getNodeColorStyle(sub) }}
-                            accessToken={user.accessToken}
-                            isSubordinate
-                            onViewReport={handleViewReport}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </>
-            ) : (
-              /* Flat subordinate list (non-manager roles) */
-              <div className="relative flex items-start" style={{ gap: H_GAP }}>
-                {subordinates.length > 1 && (() => {
-                  const totalWidth = subordinates.length * NODE_W + (subordinates.length - 1) * H_GAP;
-                  return (
-                    <div
-                      className="absolute bg-slate-700/60 pointer-events-none"
-                      style={{ top: -1, left: NODE_W / 2, width: totalWidth - NODE_W, height: 1 }}
-                    />
-                  );
-                })()}
-                {subordinates.map((sub, idx) => (
-                  <div key={sub.username || idx} className="flex flex-col items-center">
-                    <div className="bg-slate-700/60" style={{ width: 1, height: CONNECTOR_H }} />
-                    <PersonNode
-                      node={{ ...sub, isActiveUser: false, colorStyle: getNodeColorStyle(sub) }}
+                    <div className={`${LAYER_COLORS.subordinate.connector} mt-4`} style={{ width: 1, height: V_GAP }} />
+                    <NodeRow
+                      nodes={directSubs.map(sub => ({
+                        ...sub,
+                        isActiveUser: false,
+                        colorStyle: { bg: LAYER_COLORS.subordinate.bg, border: LAYER_COLORS.subordinate.border, text: LAYER_COLORS.subordinate.text },
+                      }))}
+                      connectorClass={LAYER_COLORS.subordinate.connector}
                       accessToken={user.accessToken}
                       isSubordinate
                       onViewReport={handleViewReport}
                     />
-                  </div>
-                ))}
-              </div>
+                  </>
+                )}
+              </>
+            ) : (
+              /* Flat subordinate list (non-manager roles) — emerald */
+              <NodeRow
+                nodes={subordinates.map(sub => ({
+                  ...sub,
+                  isActiveUser: false,
+                  colorStyle: { bg: LAYER_COLORS.subordinate.bg, border: LAYER_COLORS.subordinate.border, text: LAYER_COLORS.subordinate.text },
+                }))}
+                connectorClass={LAYER_COLORS.subordinate.connector}
+                accessToken={user.accessToken}
+                isSubordinate
+                onViewReport={handleViewReport}
+              />
             )}
           </>
         )}
