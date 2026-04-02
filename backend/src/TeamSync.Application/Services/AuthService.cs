@@ -38,18 +38,13 @@ public class AuthService : IAuthService
             };
         }
 
-        // MongoDB'de username'e göre kullanıcıyı bul (şifre kontrolü YOK)
+        // MongoDB'de username'e göre kullanıcıyı bul
         var user = await _userRepository.GetByUsernameAsync(request.Username);
 
-        // Eğer user bulunamazsa, otomatik oluştur (demo mode)
+        // Eğer user bulunamazsa, giriş yapılamaz
         if (user == null)
         {
-            user = new Domain.Entities.User
-            {
-                Username = request.Username,
-                FullName = request.Username
-            };
-            await _userRepository.CreateAsync(user);
+            return null;
         }
 
         // JWT üret
