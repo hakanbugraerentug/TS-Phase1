@@ -8,6 +8,7 @@ interface Comment {
   rawAuthor: string;
   text: string;
   date: string;
+  rawDate: Date;
 }
 
 interface Birim {
@@ -31,6 +32,25 @@ interface AppUser {
 const UNIT_TYPES = ['Yazılım', 'Donanım', 'Mekanik', 'Sistem'];
 
 type DetailTab = 'comments' | 'details' | 'settings';
+// Returns the Monday (00:00:00) of the week containing the given date
+const getWeekStart = (d: Date): Date => {
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
+// Formats a week as "DD MMM – DD MMM YYYY" in Turkish locale
+const formatWeekLabel = (monday: Date): string => {
+  const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
+  const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+  const yearOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+  return `${monday.toLocaleDateString('tr-TR', opts)} – ${sunday.toLocaleDateString('tr-TR', yearOpts)}`;
+};
+
+type DetailTab = 'comments' | 'details';
 
 export const ProjectDetail: React.FC<{
   projectId: string;
@@ -45,6 +65,8 @@ export const ProjectDetail: React.FC<{
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => getWeekStart(new Date()));
+  const [weekFilterOpen, setWeekFilterOpen] = useState(false);
 
   // Details tab
   const [birimler, setBirimler] = useState<Birim[]>([]);
@@ -69,8 +91,30 @@ export const ProjectDetail: React.FC<{
   // Birim user search dropdowns
   const [birimDropdowns, setBirimDropdowns] = useState<{ open: boolean; query: string }[]>([]);
   const birimDropdownRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const weekFilterRef = useRef<HTMLDivElement | null>(null);
 
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+  // Derive sorted list of unique weeks that have comments
+  const availableWeeks: Date[] = React.useMemo(() => {
+    const seen = new Map<string, Date>();
+    comments.forEach(c => {
+      const ws = getWeekStart(c.rawDate);
+      const key = ws.toISOString();
+      if (!seen.has(key)) seen.set(key, ws);
+    });
+    // Always include current week so there's at least one option
+    const current = getWeekStart(new Date());
+    if (!seen.has(current.toISOString())) seen.set(current.toISOString(), current);
+    return Array.from(seen.values()).sort((a, b) => b.getTime() - a.getTime());
+  }, [comments]);
+
+  // Comments visible in the selected week
+  const filteredComments = React.useMemo(() => {
+    const start = selectedWeekStart;
+    const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+    return comments.filter(c => c.rawDate >= start && c.rawDate < end);
+  }, [comments, selectedWeekStart]);
 
   const fetchComments = async () => {
     try {
@@ -82,13 +126,17 @@ export const ProjectDetail: React.FC<{
       });
       if (response.ok) {
         const data = await response.json();
-        const mapped: Comment[] = (data || []).map((c: any) => ({
-          id: c.id,
-          author: c.username,
-          rawAuthor: c.username,
-          text: c.content,
-          date: c.date ? new Date(c.date).toLocaleString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
-        }));
+        const mapped: Comment[] = (data || []).map((c: any) => {
+          const rawDate = c.date ? new Date(c.date) : new Date(0);
+          return {
+            id: c.id,
+            author: c.username,
+            rawAuthor: c.username,
+            text: c.content,
+            date: c.date ? rawDate.toLocaleString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '',
+            rawDate
+          };
+        });
         setComments(mapped);
       }
     } catch (err) {
@@ -158,6 +206,9 @@ export const ProjectDetail: React.FC<{
           setBirimDropdowns(prev => prev.map((d, idx) => idx === i ? { ...d, open: false } : d));
         }
       });
+      if (weekFilterRef.current && !weekFilterRef.current.contains(e.target as Node)) {
+        setWeekFilterOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -368,8 +419,8 @@ export const ProjectDetail: React.FC<{
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
           Yorumlar
-          {comments.length > 0 && (
-            <span className="bg-white/20 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">{comments.length}</span>
+          {filteredComments.length > 0 && (
+            <span className="bg-white/20 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">{filteredComments.length}</span>
           )}
         </button>
         <button
@@ -403,9 +454,48 @@ export const ProjectDetail: React.FC<{
 
       {/* COMMENTS TAB */}
       {activeTab === 'comments' && (
-        <div className="flex-1 overflow-hidden flex flex-col gap-6 h-[calc(100vh-280px)]">
+        <div className="flex-1 overflow-hidden flex flex-col gap-4 h-[calc(100vh-280px)]">
+
+          {/* Week filter */}
+          <div className="flex justify-end">
+            <div ref={weekFilterRef} className="relative">
+              <button
+                onClick={() => setWeekFilterOpen(prev => !prev)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black text-slate-300 uppercase tracking-widest transition-all"
+              >
+                <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {formatWeekLabel(selectedWeekStart)}
+                <svg className={`w-3 h-3 transition-transform ${weekFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {weekFilterOpen && (
+                <div className="absolute right-0 top-full mt-2 z-50 min-w-[240px] bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+                  {availableWeeks.map(ws => {
+                    const isSelected = ws.toISOString() === selectedWeekStart.toISOString();
+                    return (
+                      <button
+                        key={ws.toISOString()}
+                        onClick={() => { setSelectedWeekStart(ws); setWeekFilterOpen(false); }}
+                        className={`w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${
+                          isSelected
+                            ? 'bg-blue-600 text-white'
+                            : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        {formatWeekLabel(ws)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
-            {comments.map((comment) => (
+            {filteredComments.map((comment) => (
               <div key={comment.id} className="group bg-[#1e293b]/30 backdrop-blur-md rounded-3xl p-6 border border-white/5 hover:border-blue-500/20 transition-all">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
@@ -437,12 +527,12 @@ export const ProjectDetail: React.FC<{
                 </p>
               </div>
             ))}
-            {comments.length === 0 && (
+            {filteredComments.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center opacity-20">
                 <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
-                <p className="text-[10px] font-black uppercase tracking-widest">Henüz yorum yapılmamış</p>
+                <p className="text-[10px] font-black uppercase tracking-widest">Bu haftaya ait yorum bulunamadı</p>
               </div>
             )}
           </div>

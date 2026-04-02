@@ -147,8 +147,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       
       <div className="mt-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-500">
         <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em]">
-          Powered by Core Framework <br/> 
-          <span className="text-white font-black mt-2 block border-b border-blue-500/30 pb-1 px-4">Hakan Buğra Erentuğ</span>
+          <span className="text-white font-black mt-2 block border-b border-blue-500/30 pb-1 px-4">SYUYTM Projesi</span>
         </p>
       </div>
     </div>

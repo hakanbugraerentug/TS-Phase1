@@ -1,6 +1,16 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { User } from '../App';
+
+function isElevatedTitle(title: string): boolean {
+  const t = title.toLowerCase();
+  return (
+    t.includes('müdür') || t.includes('mudur') || t.includes('manager') ||
+    t.includes('direktör') || t.includes('direktor') || t.includes('director') ||
+    t.includes('başkan') || t.includes('baskan') || t.includes('head') ||
+    t.includes('chief') || t.includes('genel müdür') || t.includes('genel mudur')
+  );
+}
 
 interface Slide {
   image: string;
@@ -70,11 +80,15 @@ interface HowToUseProps {
 export const HowToUse: React.FC<HowToUseProps> = ({ user }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [activeSlides, setActiveSlides] = useState<Slide[]>(managerSlides);
+
+  const isManager = useMemo(() => isElevatedTitle(user.title ?? ''), [user.title]);
+  const activeSlides = isManager ? managerSlides : personnelSlides;
+  const presentationLabel = isManager ? 'Yönetici Sunumu' : 'Mühendis Sunumu';
 
   const handlePrev = () => setCurrentSlide(prev => Math.max(0, prev - 1));
   const handleNext = () => setCurrentSlide(prev => Math.min(activeSlides.length - 1, prev + 1));
-  const handleClose = () => setIsOpen(false);
+  const handleClose = () => { setIsOpen(false); setCurrentSlide(0); };
+  const handleOpen = () => { setCurrentSlide(0); setIsOpen(true); };
 
   const slide = activeSlides[currentSlide];
   const isFirst = currentSlide === 0;
@@ -84,7 +98,7 @@ export const HowToUse: React.FC<HowToUseProps> = ({ user }) => {
     <>
       {/* Karşılama ekranı */}
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-8">
-        <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-xl border border-white/10">
+        <div className={`w-20 h-20 rounded-2xl flex items-center justify-center shadow-xl border border-white/10 ${isManager ? 'bg-gradient-to-br from-yellow-500 to-orange-600' : 'bg-gradient-to-br from-violet-600 to-indigo-700'}`}>
           <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.85-1.137.193-1.914.97-1.914 1.914v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 4h.008v.008H12v-.008z" />
           </svg>
@@ -92,32 +106,22 @@ export const HowToUse: React.FC<HowToUseProps> = ({ user }) => {
         <div className="text-center">
           <h2 className="text-2xl font-black tracking-tight text-slate-100 mb-2">Nasıl Kullanılır</h2>
           <p className="text-slate-400 text-sm font-black uppercase tracking-widest">
-            Rolünüzü seçin ve sunumu başlatın
+            Unvanınıza göre hazırlanan sunum yüklenmeye hazır
           </p>
+          <span className={`inline-block mt-3 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${isManager ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' : 'bg-violet-500/10 border-violet-500/30 text-violet-400'}`}>
+            {presentationLabel}
+          </span>
         </div>
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Yönetici sunumu — managerSlides'ı açar */}
-          <button
-            onClick={() => { setActiveSlides(managerSlides); setIsOpen(true); setCurrentSlide(0); }}
-            className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white font-black text-sm uppercase tracking-widest rounded-2xl transition-all duration-300 shadow-lg border border-yellow-400/30"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-            </svg>
-            Yöneticiyim Rolündeyim
-          </button>
-
-          {/* Mühendis/personel sunumu — personnelSlides'ı açar */}
-          <button
-            onClick={() => { setActiveSlides(personnelSlides); setIsOpen(true); setCurrentSlide(0); }}
-            className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black text-sm uppercase tracking-widest rounded-2xl transition-all duration-300 shadow-lg border border-blue-500/30"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-            </svg>
-            Mühendis Rolündeyim
-          </button>
-        </div>
+        <button
+          onClick={handleOpen}
+          className={`flex items-center gap-3 px-8 py-4 text-white font-black text-sm uppercase tracking-widest rounded-2xl transition-all duration-300 shadow-lg border ${isManager ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 border-yellow-400/30' : 'bg-gradient-to-r from-violet-600 to-indigo-700 hover:from-violet-500 hover:to-indigo-600 border-violet-500/30'}`}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Sunumu Başlat
+        </button>
       </div>
 
       {/* Modal */}
@@ -162,6 +166,11 @@ export const HowToUse: React.FC<HowToUseProps> = ({ user }) => {
 
             {/* İçerik */}
             <div className="p-8 pb-6">
+              {isFirst && (
+                <span className={`inline-block mb-3 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${isManager ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' : 'bg-violet-500/10 border-violet-500/30 text-violet-400'}`}>
+                  {presentationLabel}
+                </span>
+              )}
               <h3 className="text-xl font-black text-slate-100 mb-3 tracking-tight transition-all duration-300">
                 {slide.title}
               </h3>

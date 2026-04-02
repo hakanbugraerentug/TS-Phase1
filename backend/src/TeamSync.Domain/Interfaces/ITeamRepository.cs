@@ -9,6 +9,7 @@ public interface ITeamRepository
     Task<List<Team>> GetAllAsync();
     Task<List<Team>> GetByProjectIdAsync(string projectId);
     Task<List<Team>> GetByMemberAsync(string username);
+    Task<List<Team>> GetByLeaderAsync(string leaderUsername);
     Task<Team?> UpdateAsync(string id, Team team);
     Task<bool> DeleteAsync(string id);
     Task<Team?> SetLeaderAsync(string id, string leaderUsername);

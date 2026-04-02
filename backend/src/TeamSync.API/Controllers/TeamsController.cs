@@ -49,7 +49,11 @@ public class TeamsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<TeamDto>>> GetAll()
     {
-        var query = new GetAllTeamsQuery();
+        var username = User.Identity?.Name;
+        if (string.IsNullOrEmpty(username))
+            return Unauthorized();
+
+        var query = new GetAllTeamsQuery { RequesterUsername = username };
         var result = await _getAllTeamsHandler.Handle(query);
         return Ok(result);
     }
@@ -57,9 +61,20 @@ public class TeamsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<TeamDto>> Create([FromBody] CreateTeamRequest request)
     {
-        var command = new CreateTeamCommand { Request = request };
-        var result = await _createTeamHandler.Handle(command);
-        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        var username = User.Identity?.Name;
+        if (string.IsNullOrEmpty(username))
+            return Unauthorized();
+
+        var command = new CreateTeamCommand { Request = request, RequesterUsername = username };
+        try
+        {
+            var result = await _createTeamHandler.Handle(command);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, ex.Message);
+        }
     }
 
     [HttpGet("{id}")]
