@@ -25,6 +25,10 @@ interface Project {
   ilgiliEkipIdleri?: string[];
   cardImage?: string;
   image?: string;
+  baslamaTarihi?: string;
+  bitisTarihi?: string;
+  tfsLinki?: string;
+  wikiLinki?: string;
 }
 
 interface TeamOption {
@@ -767,15 +771,92 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
                 <h3 className="text-xl font-black text-white mb-3 tracking-tighter group-hover:text-blue-400 transition-colors italic leading-tight">{project.title}</h3>
                 <p className="text-slate-400 text-xs font-medium leading-relaxed italic line-clamp-2 mb-3 opacity-80">{project.description}</p>
 
+                {/* TFS & Wiki Links */}
+                {(project.tfsLinki || project.wikiLinki) && (
+                  <div className="flex gap-2 mb-3 flex-wrap">
+                    {project.tfsLinki && (
+                      <a
+                        href={project.tfsLinki}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 text-[9px] font-black uppercase tracking-widest hover:bg-orange-500/20 transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                        </svg>
+                        TFS
+                      </a>
+                    )}
+                    {project.wikiLinki && (
+                      <a
+                        href={project.wikiLinki}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                        </svg>
+                        Wiki
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Birimler with responsible persons */}
                 {(project.birimler || []).length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  <div className="mb-3 space-y-1">
+                    <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest mb-1">Birimler</p>
                     {(project.birimler || []).map((b, i) => (
-                      <span key={i} className="text-[8px] font-black px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                        {b.birimTipi}{b.birimAdi ? `: ${b.birimAdi}` : ''}
-                      </span>
+                      <div key={i} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                        <span className="text-[9px] font-black text-indigo-400">
+                          {b.birimTipi}{b.birimAdi ? ` · ${b.birimAdi}` : ''}
+                        </span>
+                        {b.sorumluKullanici && (
+                          <span title={b.sorumluKullanici} className="text-[8px] font-semibold text-slate-400 italic ml-2 truncate max-w-[80px]">
+                            {b.sorumluKullanici}
+                          </span>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}
+
+                {/* Progress Bar */}
+                {project.baslamaTarihi && project.bitisTarihi && (() => {
+                  const start = new Date(project.baslamaTarihi);
+                  const end = new Date(project.bitisTarihi);
+                  const now = new Date();
+                  const total = end.getTime() - start.getTime();
+                  const elapsed = now.getTime() - start.getTime();
+                  const notStarted = elapsed < 0;
+                  const pct = notStarted || total <= 0 ? 0 : Math.min(100, Math.round((elapsed / total) * 100));
+                  const fmt = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                  return (
+                    <div className="mb-3">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">İlerleme</span>
+                        <span className="text-[8px] font-black text-blue-400">
+                          {notStarted ? 'Başlamadı' : `${pct}%`}
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-700"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1">
+                        <span className="text-[7px] text-slate-500 font-semibold">{fmt(start)}</span>
+                        <span className="text-[7px] text-slate-500 font-semibold">{fmt(end)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 
                 <div className="mt-auto pt-5 border-t border-white/5 flex justify-between items-end">
                    <div>
