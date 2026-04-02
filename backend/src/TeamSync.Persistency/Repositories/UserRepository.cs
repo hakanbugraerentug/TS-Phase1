@@ -46,6 +46,31 @@ public class UserRepository : IUserRepository
         return await _context.Users.Find(_ => true).ToListAsync();
     }
 
+    public async Task<List<string>> GetSubordinatesAsync(string username)
+    {
+        var user = await GetByUsernameAsync(username);
+        if (user == null) return new List<string>();
+
+        var result = new List<string>();
+        var queue = new Queue<string>();
+        queue.Enqueue(user.DistinguishedName);
+
+        while (queue.Count > 0)
+        {
+            var dn = queue.Dequeue();
+            var directReports = await _context.Users
+                .Find(u => u.Manager == dn)
+                .ToListAsync();
+            foreach (var report in directReports)
+            {
+                result.Add(report.Username);
+                queue.Enqueue(report.DistinguishedName);
+            }
+        }
+
+        return result;
+    }
+
     public async Task<object?> GetOrgChartAsync(string username)
     {
         var activeUser = await _context.Users.Find(u => u.Username == username).FirstOrDefaultAsync();

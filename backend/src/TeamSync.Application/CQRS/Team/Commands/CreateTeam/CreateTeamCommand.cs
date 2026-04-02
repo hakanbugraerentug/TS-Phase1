@@ -5,4 +5,5 @@ namespace TeamSync.Application.CQRS.Team.Commands.CreateTeam;
 public class CreateTeamCommand
 {
     public CreateTeamRequest Request { get; set; } = null!;
+    public string RequesterUsername { get; set; } = string.Empty;
 }

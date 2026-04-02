@@ -55,10 +55,7 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
       });
       if (response.ok) {
         const data = await response.json();
-        const myTeams = (data || []).filter((t: Team) =>
-          t.members?.includes(user.username) || t.leader === user.username
-        );
-        setTeams(myTeams);
+        setTeams(data || []);
       } else {
         setTeams([]);
       }
