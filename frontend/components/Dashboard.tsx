@@ -146,7 +146,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
           ) : activeTab === 'NasilKullanilir' ? (
             <HowToUse user={user} />
           ) : activeTab === 'ToplantıKaydi' ? (
-            <MeetingReport user={user} />
+            <MeetingReport />
           ) : null}
         </main>
 

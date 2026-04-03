@@ -1,11 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { User } from '../App';
 
-interface MeetingReportProps {
-  user: User;
-}
-
-export const MeetingReport: React.FC<MeetingReportProps> = () => {
+export const MeetingReport: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -19,7 +14,7 @@ export const MeetingReport: React.FC<MeetingReportProps> = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((file: File) => {
-    if (!file.type.startsWith('video/') && file.type !== 'video/mp4') return;
+    if (!file.type.startsWith('video/')) return;
     if (videoUrl) URL.revokeObjectURL(videoUrl);
     const url = URL.createObjectURL(file);
     setVideoFile(file);
@@ -66,6 +61,14 @@ export const MeetingReport: React.FC<MeetingReportProps> = () => {
   };
 
   const handleEnded = () => setIsPlaying(false);
+
+  const jumpTime = (seconds: number) => {
+    const v = videoRef.current;
+    if (v) {
+      v.currentTime = Math.max(0, Math.min(duration, v.currentTime + seconds));
+      setCurrentTime(v.currentTime);
+    }
+  };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = videoRef.current;
@@ -213,19 +216,19 @@ export const MeetingReport: React.FC<MeetingReportProps> = () => {
               {/* Jump buttons */}
               <div className="flex items-center gap-2 ml-auto">
                 <button
-                  onClick={() => { const v = videoRef.current; if (v) { v.currentTime = Math.max(0, v.currentTime - 10); setCurrentTime(v.currentTime); } }}
+                  onClick={() => jumpTime(-10)}
                   className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-[#00AFF0] transition-colors px-2 py-1 rounded-lg hover:bg-[#00AFF0]/10"
                 >
                   ‹‹ 10s
                 </button>
                 <button
-                  onClick={() => { const v = videoRef.current; if (v) { v.currentTime = Math.min(duration, v.currentTime + 10); setCurrentTime(v.currentTime); } }}
+                  onClick={() => jumpTime(10)}
                   className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-[#00AFF0] transition-colors px-2 py-1 rounded-lg hover:bg-[#00AFF0]/10"
                 >
                   10s ››
                 </button>
                 <button
-                  onClick={() => { const v = videoRef.current; if (v) { v.currentTime = Math.min(duration, v.currentTime + 30); setCurrentTime(v.currentTime); } }}
+                  onClick={() => jumpTime(30)}
                   className="text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-[#00AFF0] transition-colors px-2 py-1 rounded-lg hover:bg-[#00AFF0]/10"
                 >
                   30s ››
