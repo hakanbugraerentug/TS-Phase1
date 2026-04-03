@@ -18,6 +18,10 @@ public class TfsService : ITfsService
         PropertyNameCaseInsensitive = true
     };
 
+    private const int MaxProjectsPerPage = 200;
+    private const int MaxCommitsPerRepo = 100;
+    private const int MaxWorkItemsPerQuery = 50;
+
     public TfsService(IAccessTokenRepository tokenRepository, IHttpClientFactory httpClientFactory)
     {
         _tokenRepository = tokenRepository;
@@ -104,7 +108,7 @@ public class TfsService : ITfsService
 
     private async Task<List<AzureProject>> GetProjectsAsync(HttpClient client, string baseUrl)
     {
-        var url = $"{baseUrl}/_apis/projects?api-version=6.0&$top=200";
+        var url = $"{baseUrl}/_apis/projects?api-version=6.0&$top={MaxProjectsPerPage}";
         var response = await client.GetAsync(url);
         if (!response.IsSuccessStatusCode)
             return new List<AzureProject>();
@@ -139,7 +143,7 @@ public class TfsService : ITfsService
         var encodedProject = Uri.EscapeDataString(projectName);
         var url = $"{baseUrl}/{encodedProject}/_apis/git/repositories/{repoId}/commits" +
                   $"?searchCriteria.fromDate={Uri.EscapeDataString(fromDateIso)}" +
-                  $"&$top=100&api-version=6.0";
+                  $"&$top={MaxCommitsPerRepo}&api-version=6.0";
 
         var response = await client.GetAsync(url);
         if (!response.IsSuccessStatusCode)
@@ -173,7 +177,7 @@ public class TfsService : ITfsService
 
         var wiqlJson = await wiqlResponse.Content.ReadAsStringAsync();
         var wiqlResult = JsonSerializer.Deserialize<WiqlResult>(wiqlJson, JsonOptions);
-        var ids = wiqlResult?.WorkItems?.Select(w => w.Id).Take(50).ToList() ?? new List<int>();
+        var ids = wiqlResult?.WorkItems?.Select(w => w.Id).Take(MaxWorkItemsPerQuery).ToList() ?? new List<int>();
         if (ids.Count == 0)
             return new List<TfsWorkItemInfo>();
 
