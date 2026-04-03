@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Projects } from './Projects';
 import { ProjectDetail } from './ProjectDetail';
 import { WeeklySummary } from './WeeklySummary';
@@ -10,7 +10,6 @@ import { HowToUse } from './HowToUse';
 import { ManagerPanel } from './ManagerPanel';
 import { MergeIncomingReports } from './MergeIncomingReports';
 import { HomePage } from './HomePage';
-import { ProjectSummary } from './ProjectSummary';
 import { isElevatedTitle } from '../utils/titleHelpers';
 
 interface DashboardProps {
@@ -30,56 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [showTfsModal, setShowTfsModal] = useState(false);
   const [showSkypeModal, setShowSkypeModal] = useState(false);
   const [selectedProjectTitle, setSelectedProjectTitle] = useState<string>('');
-  const [isTeamLeader, setIsTeamLeader] = useState(false);
-  const [isRoleChecked, setIsRoleChecked] = useState(false);
-  const [isDelegated, setIsDelegated] = useState(false);
-
-  const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
-
-  useEffect(() => {
-    const checkTeamLeadership = async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/teams`, {
-          headers: { Authorization: `Bearer ${user.accessToken}` }
-        });
-        if (res.ok) {
-          const teams: { leader: string }[] = await res.json();
-          setIsTeamLeader(teams.some(t => t.leader === user.username));
-        }
-      } catch {
-        // ignore errors; isTeamLeader stays false
-      } finally {
-        setIsRoleChecked(true);
-      }
-    };
-    const checkDelegation = async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/delegations/to-me`, {
-          headers: { Authorization: `Bearer ${user.accessToken}` }
-        });
-        if (res.ok) {
-          const delegations: unknown[] = await res.json();
-          setIsDelegated(delegations.length > 0);
-        }
-      } catch {
-        // ignore; isDelegated stays false
-      }
-    };
-    checkTeamLeadership();
-    checkDelegation();
-  }, [user.username, user.accessToken, apiUrl]);
-
-  // Users with elevated titles (Manager/Director/etc.) are identified synchronously from the JWT.
-  // Team leadership requires an async API check; hide the tab until the check completes
-  // to avoid a flicker for users who are team leaders but have no elevated title.
   const hasElevatedTitle = isElevatedTitle(user.title ?? '');
-  const canSeeReports = !hasElevatedTitle && (isRoleChecked && isTeamLeader);
-  // Elevated users (Müdür and above) now see the ManagerPanel embedded on the HomePage,
-  // so the sidebar tab is shown only for non-elevated delegated users.
-  const canSeeManagerPanel = !hasElevatedTitle && isDelegated;
-  // Team leaders can generate project-based summaries for their own teams' projects.
-  // Delegated (non-elevated) users also retain access to the project summary feature.
-  const canSeeProjectSummary = !hasElevatedTitle && (isDelegated || (isRoleChecked && isTeamLeader));
 
   const handleProjectSelect = (id: string, title: string) => {
     setSelectedProjectId(id);
@@ -97,14 +47,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     { id: 'Ekipler', name: 'Ekipler', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /> },
     { id: 'Projelerim', name: 'Projelerim', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /> },
     { id: 'Sema', name: 'Organizasyon Şeması', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /> },
-    ...(canSeeReports ? [{ id: 'Raporlar', name: 'Haftalık Raporlar', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 2v-6m-9 9h12" /> }] : []),
-    ...(hasElevatedTitle ? [{ id: 'GelenRaporlar', name: 'Gelen Raporları Birleştir', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /> }] : []),
-    ...(canSeeManagerPanel ? [
-      { id: 'YoneticPanel', name: 'Yönetici Paneli', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2z" /> },
-    ] : []),
-    ...(canSeeProjectSummary ? [
-      { id: 'ProjeBazliOzet', name: 'Proje Bazlı Özetleme', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /> },
-    ] : []),
+    { id: 'Raporlar', name: 'Haftalık Raporlar', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 2v-6m-9 9h12" /> },
+    { id: 'GelenRaporlar', name: 'Gelen Raporları Birleştir', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /> },
+    { id: 'YoneticPanel', name: 'Yönetici Paneli', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2z" /> },
     { id: 'NasilKullanilir', name: 'Nasıl Kullanılır', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.85-1.137.193-1.914.97-1.914 1.914v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 4h.008v.008H12v-.008z" /> },
   ];
 
@@ -188,7 +133,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         <header className="h-20 bg-[#0f172a]/90 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-10 shadow-sm sticky top-0 z-10 flex-shrink-0">
           <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
-            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'YoneticPanel' ? 'Yönetici Paneli' : activeTab === 'ProjeBazliOzet' ? 'Proje Bazlı Özetleme' : activeTab === 'GelenRaporlar' ? 'Gelen Raporları Birleştir' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab}
+            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'YoneticPanel' ? 'Yönetici Paneli' : activeTab === 'GelenRaporlar' ? 'Gelen Raporları Birleştir' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab}
           </span>
           <img 
             src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Yap%C4%B1_Kredi_logo.svg/1024px-Yap%C4%B1_Kredi_logo.svg.png" 
@@ -214,8 +159,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
             <HowToUse user={user} />
           ) : activeTab === 'YoneticPanel' ? (
             <ManagerPanel user={user} />
-          ) : activeTab === 'ProjeBazliOzet' ? (
-            <ProjectSummary user={user} />
           ) : activeTab === 'GelenRaporlar' ? (
             <MergeIncomingReports user={user} />
           ) : null}
