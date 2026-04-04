@@ -50,8 +50,6 @@ const formatWeekLabel = (monday: Date): string => {
   return `${monday.toLocaleDateString('tr-TR', opts)} – ${sunday.toLocaleDateString('tr-TR', yearOpts)}`;
 };
 
-type DetailTab = 'comments' | 'details';
-
 export const ProjectDetail: React.FC<{
   projectId: string;
   projectTitle: string;
