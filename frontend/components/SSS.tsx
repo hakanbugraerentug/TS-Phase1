@@ -29,7 +29,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'TFS / Azure DevOps entegrasyonu nasıl çalışır?',
     answer:
-      'Sol alt köşedeki "TFS ile Sync Et" düğmesine tıklayın, Azure DevOps kuruluş URL\'nizi ve Personal Access Token (PAT) bilgilerinizi girin. Bağlantı kurulduktan sonra "TFS / Azure DevOps" sekmesinden tamamlanan ve devam eden iş öğelerinizi ve commitlori görebilirsiniz.',
+      'Sol alt köşedeki "TFS ile Sync Et" düğmesine tıklayın, Azure DevOps kuruluş URL\'nizi ve Personal Access Token (PAT) bilgilerinizi girin. Bağlantı kurulduktan sonra "TFS / Azure DevOps" sekmesinden tamamlanan ve devam eden iş öğelerinizi ve commit\'lerinizi görebilirsiniz.',
   },
   {
     question: 'Yeni bir proje nasıl oluşturabilirim?',

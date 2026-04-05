@@ -3,20 +3,22 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 import motor.motor_asyncio
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from .config import get_settings
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+_client: Optional[motor.motor_asyncio.AsyncIOMotorClient] = None
 
-def get_collection() -> motor.motor_asyncio.AsyncIOMotorCollection:
+
+def _get_collection() -> motor.motor_asyncio.AsyncIOMotorCollection:
+    global _client
     settings = get_settings()
-    client: motor.motor_asyncio.AsyncIOMotorClient = motor.motor_asyncio.AsyncIOMotorClient(
-        settings.mongo_uri
-    )
-    return client[settings.mongo_db]["users"]
+    if _client is None:
+        _client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongo_uri)
+    return _client[settings.mongo_db]["users"]
 
 
 class UserOut(BaseModel):
@@ -32,6 +34,8 @@ class UserOut(BaseModel):
 
 
 def _to_user_out(doc: Dict[str, Any]) -> UserOut:
+    # The MongoDB document stores the full name under the 'name' key,
+    # matching the .NET BsonElement("name") → FullName mapping convention.
     return UserOut(
         username=doc.get("username", ""),
         fullName=doc.get("name", ""),
@@ -46,10 +50,9 @@ def _to_user_out(doc: Dict[str, Any]) -> UserOut:
 
 
 @router.get("", response_model=List[UserOut], summary="Tüm kullanıcıları listele")
-async def get_users(
-    collection: motor.motor_asyncio.AsyncIOMotorCollection = Depends(get_collection),
-) -> List[UserOut]:
+async def get_users() -> List[UserOut]:
     """Veritabanındaki tüm kullanıcıları döndürür (fotoğraf verisi hariç)."""
+    collection = _get_collection()
     docs = await collection.find({}, {"photo": 0}).to_list(length=None)
     return [_to_user_out(d) for d in docs]
 
@@ -62,11 +65,9 @@ async def get_users(
         404: {"description": "Kullanıcı bulunamadı"},
     },
 )
-async def delete_user(
-    username: str,
-    collection: motor.motor_asyncio.AsyncIOMotorCollection = Depends(get_collection),
-) -> Dict[str, str]:
+async def delete_user(username: str) -> Dict[str, str]:
     """Verilen kullanıcı adına sahip kullanıcıyı siler."""
+    collection = _get_collection()
     result = await collection.delete_one({"username": username})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail=f"Kullanıcı bulunamadı: {username}")
