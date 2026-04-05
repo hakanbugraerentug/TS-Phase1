@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TeamSync.Domain.Interfaces;
 
 namespace TeamSync.Persistency.Services;
@@ -47,7 +48,7 @@ public class TfsService : ITfsService
             foreach (var repo in repos)
             {
                 var repoCommits = await GetCommitsForRepoAsync(
-                    client, baseUrl, project.Name, repo.Id, repo.Name, fromDate);
+                    client, baseUrl, project.Name, repo.Id, repo.Name, fromDate, username);
                 commits.AddRange(repoCommits);
             }
         }
@@ -138,11 +139,13 @@ public class TfsService : ITfsService
         string projectName,
         string repoId,
         string repoName,
-        string fromDateIso)
+        string fromDateIso,
+        string author)
     {
         var encodedProject = Uri.EscapeDataString(projectName);
         var url = $"{baseUrl}/{encodedProject}/_apis/git/repositories/{repoId}/commits" +
                   $"?searchCriteria.fromDate={Uri.EscapeDataString(fromDateIso)}" +
+                  $"&searchCriteria.author={Uri.EscapeDataString(author)}" +
                   $"&$top={MaxCommitsPerRepo}&api-version=6.0";
 
         var response = await client.GetAsync(url);
@@ -226,15 +229,32 @@ public class TfsService : ITfsService
 
     private record WiqlResult(List<WiqlWorkItemRef>? WorkItems);
 
-    private record AssignedToField(string? DisplayName);
+    private class AssignedToField
+    {
+        [JsonPropertyName("displayName")]
+        public string? DisplayName { get; init; }
+    }
 
-    private record WorkItemFields(
-        int SystemId,
-        string? SystemTitle,
-        string? SystemState,
-        string? SystemWorkItemType,
-        AssignedToField? SystemAssignedTo,
-        DateTime? SystemChangedDate);
+    private class WorkItemFields
+    {
+        [JsonPropertyName("System.Id")]
+        public int SystemId { get; init; }
+
+        [JsonPropertyName("System.Title")]
+        public string? SystemTitle { get; init; }
+
+        [JsonPropertyName("System.State")]
+        public string? SystemState { get; init; }
+
+        [JsonPropertyName("System.WorkItemType")]
+        public string? SystemWorkItemType { get; init; }
+
+        [JsonPropertyName("System.AssignedTo")]
+        public AssignedToField? SystemAssignedTo { get; init; }
+
+        [JsonPropertyName("System.ChangedDate")]
+        public DateTime? SystemChangedDate { get; init; }
+    }
 
     private record AzureWorkItem(int Id, WorkItemFields Fields, string? Url);
 }
