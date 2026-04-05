@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     # Set to None to let pyannote auto-detect the number of speakers
     meeting_num_speakers: Optional[int] = None
+    # Optional: path to the directory that contains the
+    # models--pyannote--speaker-diarization-3.1 HF cache folder.
+    # When set, the model is loaded fully offline from that directory.
+    # When empty, the model is downloaded from HuggingFace using HF_TOKEN.
+    pyannote_local_model_dir: str = ""
 
     # MongoDB (for caching meeting results)
     mongodb_url: str = "mongodb://localhost:27017"

@@ -92,15 +92,25 @@ def _convert_mp4_to_wav(mp4_path: str, wav_path: str) -> None:
     )
 
 
-def _run_diarization(wav_path: str, rttm_path: str, hf_token: str, num_speakers: Optional[int] = None) -> None:
+def _run_diarization(wav_path: str, rttm_path: str, hf_token: str, num_speakers: Optional[int] = None, local_model_dir: str = "") -> None:
     """Run pyannote speaker diarization and write RTTM file."""
     global _pyannote_pipeline
     if _pyannote_pipeline is None:
         from pyannote.audio import Pipeline as PyannotePipeline  # heavy import
-        _pyannote_pipeline = PyannotePipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1",
-            use_auth_token=hf_token,
-        )
+        if local_model_dir:
+            # Load from a local HuggingFace cache folder — no internet needed.
+            from huggingface_hub import snapshot_download
+            snapshot_path = snapshot_download(
+                "pyannote/speaker-diarization-3.1",
+                cache_dir=local_model_dir,
+                local_files_only=True,
+            )
+            _pyannote_pipeline = PyannotePipeline.from_pretrained(snapshot_path)
+        else:
+            _pyannote_pipeline = PyannotePipeline.from_pretrained(
+                "pyannote/speaker-diarization-3.1",
+                use_auth_token=hf_token,
+            )
     kwargs: Dict[str, Any] = {}
     if num_speakers is not None:
         kwargs["num_speakers"] = num_speakers
@@ -278,7 +288,7 @@ async def process_meeting(
 
             # 3. Speaker diarization
             await loop.run_in_executor(
-                None, _run_diarization, wav_path, rttm_path, settings.hf_token, settings.meeting_num_speakers
+                None, _run_diarization, wav_path, rttm_path, settings.hf_token, settings.meeting_num_speakers, settings.pyannote_local_model_dir
             )
 
             # 4. Whisper transcription
