@@ -40,6 +40,7 @@ builder.Services.Configure<LdapSettings>(builder.Configuration.GetSection("LdapS
 builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDbSettings"));
 builder.Services.Configure<VlmSettings>(builder.Configuration.GetSection("VlmSettings"));
 builder.Services.Configure<LlmSettings>(builder.Configuration.GetSection("LlmSettings"));
+builder.Services.Configure<EncryptionSettings>(builder.Configuration.GetSection("EncryptionSettings"));
 
 // Register services - Infrastructure Layer
 builder.Services.AddHttpClient();
@@ -93,6 +94,8 @@ builder.Services.AddScoped<IVlmImageService, VlmImageService>();
 builder.Services.AddScoped<IPlaceholderImageService, PlaceholderImageService>();
 builder.Services.AddScoped<IWeeklyReportRepository, WeeklyReportRepository>();
 builder.Services.AddScoped<IDelegationRepository, DelegationRepository>();
+builder.Services.AddScoped<IAccessTokenRepository, AccessTokenRepository>();
+builder.Services.AddScoped<ITfsService, TfsService>();
 
 // Register services - Application Layer
 builder.Services.AddScoped<IAuthService, AuthService>();
