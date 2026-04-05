@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -16,6 +17,16 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     app_title: str = "Weekly Report API"
+
+    # Meeting recording pipeline
+    hf_token: str = ""
+    openai_api_key: str = ""
+    # Set to None to let pyannote auto-detect the number of speakers
+    meeting_num_speakers: Optional[int] = None
+
+    # MongoDB (for caching meeting results)
+    mongodb_url: str = "mongodb://localhost:27017"
+    mongodb_db: str = "TeamSyncDb"
 
     model_config = {
         "env_file": ".env",
