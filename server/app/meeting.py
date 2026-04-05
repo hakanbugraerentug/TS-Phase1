@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
 import subprocess
 import tempfile
 import uuid
@@ -98,14 +99,32 @@ def _run_diarization(wav_path: str, rttm_path: str, hf_token: str, num_speakers:
     if _pyannote_pipeline is None:
         from pyannote.audio import Pipeline as PyannotePipeline  # heavy import
         if local_model_dir:
-            # Load from a local HuggingFace cache folder — no internet needed.
-            from huggingface_hub import snapshot_download
-            snapshot_path = snapshot_download(
-                "pyannote/speaker-diarization-3.1",
-                cache_dir=local_model_dir,
-                local_files_only=True,
-            )
-            _pyannote_pipeline = PyannotePipeline.from_pretrained(snapshot_path)
+            import yaml
+
+            diar_dir = os.path.join(local_model_dir, "speaker-diarization-3.1")
+            seg_dir = os.path.abspath(os.path.join(local_model_dir, "segmentation-3.0"))
+
+            # Read the pipeline config and patch the segmentation entry to use
+            # the local model directory instead of the HuggingFace model ID so
+            # that no internet access is required for the segmentation model.
+            config_path = os.path.join(diar_dir, "config.yaml")
+            with open(config_path, encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            config["pipeline"]["params"]["segmentation"] = seg_dir
+
+            # Write the patched config alongside the original model files in a
+            # temporary directory, then load from there.
+            patched_dir = tempfile.mkdtemp(prefix="pyannote_patched_")
+            try:
+                for fname in os.listdir(diar_dir):
+                    src = os.path.join(diar_dir, fname)
+                    if os.path.isfile(src):
+                        shutil.copy2(src, patched_dir)
+                with open(os.path.join(patched_dir, "config.yaml"), "w", encoding="utf-8") as f:
+                    yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+                _pyannote_pipeline = PyannotePipeline.from_pretrained(patched_dir)
+            finally:
+                shutil.rmtree(patched_dir, ignore_errors=True)
         else:
             _pyannote_pipeline = PyannotePipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
@@ -119,12 +138,21 @@ def _run_diarization(wav_path: str, rttm_path: str, hf_token: str, num_speakers:
         diarization.write_rttm(f)
 
 
-def _run_whisper(wav_path: str) -> List[Dict[str, Any]]:
+def _run_whisper(wav_path: str, local_model_dir: str = "") -> List[Dict[str, Any]]:
     """Transcribe audio with faster-whisper."""
     global _whisper_model
     if _whisper_model is None:
+        import torch
         from faster_whisper import WhisperModel  # heavy import
-        _whisper_model = WhisperModel("medium", device="cuda", compute_type="float16")
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        compute_type = "float16" if device == "cuda" else "int8"
+
+        if local_model_dir:
+            model_path = os.path.join(local_model_dir, "whisper-medium")
+            _whisper_model = WhisperModel(model_path, device=device, compute_type=compute_type)
+        else:
+            _whisper_model = WhisperModel("medium", device=device, compute_type=compute_type)
     segments, _ = _whisper_model.transcribe(wav_path, word_timestamps=True)
     return [
         {"start": s.start, "end": s.end, "text": s.text.strip()}
@@ -197,11 +225,15 @@ def _format_transcript(transcript: List[Dict[str, Any]]) -> str:
     )
 
 
-def _generate_report(transcript_text: str, openai_api_key: str) -> str:
-    """Generate structured meeting report using OpenAI."""
+def _generate_report(transcript_text: str) -> str:
+    """Generate structured meeting report using the configured local LLM."""
     from openai import OpenAI  # import here to keep module lightweight if not used
 
-    client = OpenAI(api_key=openai_api_key)
+    settings = get_settings()
+    client = OpenAI(
+        base_url=settings.llm_base_url,
+        api_key=settings.llm_api_key or "local",
+    )
 
     prompt = f"""Rolün: Kurumsal toplantı analisti.
 
@@ -251,11 +283,15 @@ Toplantıda netleşmemiş veya cevaplanmamış konular.
 Toplantı Dökümü:
 {transcript_text}"""
 
-    response = client.responses.create(
-        model="gpt-5",
-        input=prompt,
+    response = client.chat.completions.create(
+        model=settings.llm_model,
+        messages=[{"role": "user", "content": prompt}],
     )
-    return response.output_text
+    if not response.choices:
+        raise RuntimeError(
+            f"LLM ({settings.llm_model} at {settings.llm_base_url}) dönemedi: boş choices listesi."
+        )
+    return response.choices[0].message.content
 
 
 # ── Background processing task ────────────────────────────
@@ -292,7 +328,9 @@ async def process_meeting(
             )
 
             # 4. Whisper transcription
-            whisper_segments = await loop.run_in_executor(None, _run_whisper, wav_path)
+            whisper_segments = await loop.run_in_executor(
+                None, _run_whisper, wav_path, settings.whisper_local_model_dir
+            )
 
             # 5. Merge speaker labels
             diar_segments = _parse_rttm(rttm_path)
@@ -300,9 +338,9 @@ async def process_meeting(
             merged = _merge_consecutive(speaker_transcript)
             transcript_text = _format_transcript(merged)
 
-            # 6. Generate report via OpenAI
+            # 6. Generate report via local LLM
             report_text = await loop.run_in_executor(
-                None, _generate_report, transcript_text, settings.openai_api_key
+                None, _generate_report, transcript_text
             )
 
             # 7. Persist to MongoDB
