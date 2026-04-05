@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     # Pipeline
     max_repair_attempts: int = 2
 
+    # MongoDB
+    mongo_uri: str = "mongodb://localhost:27017"
+    mongo_db: str = "teamsync"
+
     # App
     app_host: str = "0.0.0.0"
     app_port: int = 8000

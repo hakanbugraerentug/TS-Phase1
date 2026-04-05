@@ -9,6 +9,7 @@ from .config import get_settings
 from .pipeline import build_graph, merge_subordinate_reports
 from .schemas import GenerateReportRequest, GenerateReportResponse, GenerateDocxRequest, MergeReportsRequest
 from .docx_renderer import render_report_to_bytes
+from .users import router as users_router
 
 settings = get_settings()
 
@@ -27,6 +28,8 @@ app.add_middleware(
 )
 
 graph = build_graph()
+
+app.include_router(users_router)
 
 
 @app.post(

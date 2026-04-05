@@ -11,6 +11,7 @@ import { HomePage } from './HomePage';
 import { TfsPage } from './TfsPage';
 import { MyReports } from './MyReports';
 import { MeetingReport } from './MeetingReport';
+import { SSS } from './SSS';
 import { isElevatedTitle } from '../utils/titleHelpers';
 
 const API_BASE = 'http://localhost:8000';
@@ -113,6 +114,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     { id: 'Raporlarim', name: 'Raporlarım', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /> },
     { id: 'ToplantıKaydi', name: 'Toplantı Kaydını Raporla', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.277A1 1 0 0121 8.82v6.361a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" /> },
     { id: 'NasilKullanilir', name: 'Nasıl Kullanılır', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.85-1.137.193-1.914.97-1.914 1.914v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 4h.008v.008H12v-.008z" /> },
+    { id: 'SSS', name: 'S.S.S', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.85-1.137.193-1.914.97-1.914 1.914v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 4h.008v.008H12v-.008z" /> },
     ...(tfsHasCredentials ? [{ id: 'TFS', name: 'TFS / Azure DevOps', icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /> }] : []),
   ];
 
@@ -141,12 +143,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
                     ? 'bg-violet-600 border-violet-400/50 shadow-lg text-white'
                     : activeTab === item.id && item.id === 'TFS'
                     ? 'bg-orange-600 border-orange-500/50 shadow-lg text-white'
+                    : activeTab === item.id && item.id === 'SSS'
+                    ? 'bg-teal-600 border-teal-400/50 shadow-lg text-white'
                     : activeTab === item.id
                     ? 'bg-blue-600 border-blue-500/50 shadow-lg'
                     : item.id === 'NasilKullanilir'
                     ? 'text-violet-400 border-violet-500/20 hover:bg-violet-600/10 hover:text-violet-300'
                     : item.id === 'TFS'
                     ? 'text-orange-400 border-orange-500/20 hover:bg-orange-600/10 hover:text-orange-300'
+                    : item.id === 'SSS'
+                    ? 'text-teal-400 border-teal-500/20 hover:bg-teal-600/10 hover:text-teal-300'
                     : 'text-slate-500 border-transparent hover:bg-white/5 hover:text-white'
                 }`}
               >
@@ -194,8 +200,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         <header className="h-20 bg-[#0f172a]/90 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-10 shadow-sm sticky top-0 z-10 flex-shrink-0">
           <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
-            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab === 'TFS' ? 'TFS / Azure DevOps' : activeTab}
-            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab === 'ToplantıKaydi' ? 'Toplantı Kaydını Raporla' : activeTab}
+            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab === 'TFS' ? 'TFS / Azure DevOps' : activeTab === 'SSS' ? 'Sıkça Sorulan Sorular' : activeTab}
+            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab === 'ToplantıKaydi' ? 'Toplantı Kaydını Raporla' : activeTab === 'SSS' ? 'Sıkça Sorulan Sorular' : activeTab}
           </span>
           <img 
             src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Yap%C4%B1_Kredi_logo.svg/1024px-Yap%C4%B1_Kredi_logo.svg.png" 
@@ -223,6 +229,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
             <TfsPage user={user} />
           ) : activeTab === 'ToplantıKaydi' ? (
             <MeetingReport />
+          ) : activeTab === 'Raporlarim' ? (
+            <MyReports user={user} />
+          ) : activeTab === 'SSS' ? (
+            <SSS />
           ) : null}
         </main>
 
