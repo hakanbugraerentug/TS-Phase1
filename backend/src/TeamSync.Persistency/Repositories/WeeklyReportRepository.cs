@@ -68,4 +68,12 @@ public class WeeklyReportRepository : IWeeklyReportRepository
         );
         return await _collection.Find(filter).ToListAsync();
     }
+
+    public async Task<List<WeeklyReport>> GetAllByUsernameAsync(string username)
+    {
+        var filter = Builders<WeeklyReport>.Filter.Eq(r => r.Username, username);
+        return await _collection.Find(filter)
+            .SortByDescending(r => r.SavedAt)
+            .ToListAsync();
+    }
 }
