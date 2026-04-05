@@ -40,9 +40,8 @@ public class TfsService : ITfsService
         var fromDate = DateTime.UtcNow.AddDays(-7).ToString("o");
         var commits = new List<TfsCommitInfo>();
 
-        // Resolve the Azure DevOps display name of the authenticated user so the
-        // author filter matches the name stored on commits (which may differ from the app login name).
-        var authorName = await GetCurrentUserDisplayNameAsync(client, baseUrl) ?? username;
+        // Assume the commit author name matches the TeamSync username directly.
+        var authorName = username;
 
         // Enumerate all projects then all git repositories within each project
         var projects = await GetProjectsAsync(client, baseUrl);
@@ -109,29 +108,6 @@ public class TfsService : ITfsService
 
         var baseUrl = credentials.BaseUrl.TrimEnd('/');
         return (client, baseUrl);
-    }
-
-    /// <summary>
-    /// Returns the display name of the user who owns the configured PAT, as known by Azure DevOps.
-    /// This is used so that the commit author filter matches the name stored on the commit objects.
-    /// </summary>
-    private async Task<string?> GetCurrentUserDisplayNameAsync(HttpClient client, string baseUrl)
-    {
-        // The connectionData endpoint works for both Azure DevOps Services and TFS on-premise.
-        var url = $"{baseUrl}/_apis/connectionData?api-version=6.0";
-        var response = await client.GetAsync(url);
-        if (!response.IsSuccessStatusCode)
-            return null;
-
-        var json = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(json);
-        if (doc.RootElement.TryGetProperty("authenticatedUser", out var authUser) &&
-            authUser.TryGetProperty("providerDisplayName", out var displayName))
-        {
-            return displayName.GetString();
-        }
-
-        return null;
     }
 
     private async Task<List<AzureProject>> GetProjectsAsync(HttpClient client, string baseUrl)
