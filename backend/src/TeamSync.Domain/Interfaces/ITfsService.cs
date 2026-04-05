@@ -4,6 +4,7 @@ public record TfsCommitInfo(
     string CommitId,
     string Comment,
     string AuthorName,
+    string AuthorEmail,
     DateTime AuthorDate,
     string RepositoryName,
     string ProjectName,

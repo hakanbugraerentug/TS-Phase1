@@ -40,8 +40,9 @@ public class TfsService : ITfsService
         var fromDate = DateTime.UtcNow.AddDays(-7).ToString("o");
         var commits = new List<TfsCommitInfo>();
 
-        // Assume the commit author name matches the TeamSync username directly.
-        var authorName = username;
+        // Fetch the authenticated user's display name and unique name (email/alias) from Azure DevOps
+        // so we can filter commits client-side rather than relying on the username matching the git author field.
+        var userInfo = await GetAuthenticatedUserInfoAsync(client, baseUrl);
 
         // Enumerate all projects then all git repositories within each project
         var projects = await GetProjectsAsync(client, baseUrl);
@@ -51,12 +52,19 @@ public class TfsService : ITfsService
             foreach (var repo in repos)
             {
                 var repoCommits = await GetCommitsForRepoAsync(
-                    client, baseUrl, project.Name, repo.Id, repo.Name, fromDate, authorName);
+                    client, baseUrl, project.Name, repo.Id, repo.Name, fromDate);
                 commits.AddRange(repoCommits);
             }
         }
 
-        return commits.OrderByDescending(c => c.AuthorDate).ToList();
+        // Filter client-side: keep commits whose author name or email matches the authenticated user.
+        var filtered = commits.Where(c =>
+            (!string.IsNullOrEmpty(userInfo.DisplayName) &&
+             c.AuthorName.Equals(userInfo.DisplayName, StringComparison.OrdinalIgnoreCase)) ||
+            (!string.IsNullOrEmpty(userInfo.UniqueName) &&
+             c.AuthorEmail.Equals(userInfo.UniqueName, StringComparison.OrdinalIgnoreCase)));
+
+        return filtered.OrderByDescending(c => c.AuthorDate).ToList();
     }
 
     public async Task<List<TfsWorkItemInfo>> GetMyCompletedWorkItemsLastWeekAsync(string username)
@@ -142,13 +150,11 @@ public class TfsService : ITfsService
         string projectName,
         string repoId,
         string repoName,
-        string fromDateIso,
-        string author)
+        string fromDateIso)
     {
         var encodedProject = Uri.EscapeDataString(projectName);
         var url = $"{baseUrl}/{encodedProject}/_apis/git/repositories/{repoId}/commits" +
                   $"?searchCriteria.fromDate={Uri.EscapeDataString(fromDateIso)}" +
-                  $"&searchCriteria.author={Uri.EscapeDataString(author)}" +
                   $"&$top={MaxCommitsPerRepo}&api-version=6.0";
 
         var response = await client.GetAsync(url);
@@ -163,11 +169,28 @@ public class TfsService : ITfsService
                 CommitId: c.CommitId,
                 Comment: c.Comment,
                 AuthorName: c.Author?.Name ?? string.Empty,
+                AuthorEmail: c.Author?.Email ?? string.Empty,
                 AuthorDate: c.Author?.Date ?? DateTime.MinValue,
                 RepositoryName: repoName,
                 ProjectName: projectName,
                 RemoteUrl: c.RemoteUrl ?? string.Empty))
             .ToList();
+    }
+
+    private async Task<AzureUserInfo> GetAuthenticatedUserInfoAsync(HttpClient client, string baseUrl)
+    {
+        // connectionData returns the currently authenticated user's display name and unique name (email/alias).
+        var url = $"{baseUrl}/_apis/connectionData?api-version=6.0";
+        var response = await client.GetAsync(url);
+        if (!response.IsSuccessStatusCode)
+            return new AzureUserInfo(string.Empty, string.Empty);
+
+        var json = await response.Content.ReadAsStringAsync();
+        var data = JsonSerializer.Deserialize<AzureConnectionData>(json, JsonOptions);
+        var user = data?.AuthenticatedUser;
+        return new AzureUserInfo(
+            DisplayName: user?.ProviderDisplayName ?? string.Empty,
+            UniqueName: user?.Properties?.Account?.Value ?? string.Empty);
     }
 
     private async Task<List<TfsWorkItemInfo>> QueryWorkItemsAsync(
@@ -227,6 +250,35 @@ public class TfsService : ITfsService
     private record AzureCommitAuthor(string? Name, string? Email, DateTime Date);
 
     private record AzureCommit(string CommitId, string Comment, AzureCommitAuthor? Author, string? RemoteUrl);
+
+    private record AzureUserInfo(string DisplayName, string UniqueName);
+
+    private class AzureAccountProperty
+    {
+        [JsonPropertyName("$value")]
+        public string? Value { get; init; }
+    }
+
+    private class AzureUserProperties
+    {
+        [JsonPropertyName("Account")]
+        public AzureAccountProperty? Account { get; init; }
+    }
+
+    private class AzureAuthenticatedUser
+    {
+        [JsonPropertyName("providerDisplayName")]
+        public string? ProviderDisplayName { get; init; }
+
+        [JsonPropertyName("properties")]
+        public AzureUserProperties? Properties { get; init; }
+    }
+
+    private class AzureConnectionData
+    {
+        [JsonPropertyName("authenticatedUser")]
+        public AzureAuthenticatedUser? AuthenticatedUser { get; init; }
+    }
 
     private record WiqlWorkItemRef(int Id);
 
