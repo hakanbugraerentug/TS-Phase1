@@ -166,6 +166,38 @@ public class WeeklyReportsController : ControllerBase
         }
     }
 
+    [HttpGet("my-reports")]
+    public async Task<IActionResult> MyReports()
+    {
+        var username = User.Identity?.Name;
+        if (string.IsNullOrEmpty(username))
+            return Unauthorized();
+
+        var reports = await _repo.GetAllByUsernameAsync(username);
+
+        var dtos = reports.Select(r =>
+        {
+            var reportDataJson = r.ReportData != null
+                ? BsonTypeMapper.MapToDotNetValue(r.ReportData)
+                : null;
+
+            return new WeeklyReportDto
+            {
+                Id = r.Id,
+                Username = r.Username,
+                WeekStart = r.WeekStart,
+                ReportData = reportDataJson,
+                SavedAt = r.SavedAt,
+                Author = r.Author,
+                Reviewer = r.Reviewer,
+                ReadyToReview = r.ReadyToReview,
+                Status = r.Status
+            };
+        });
+
+        return Ok(dtos);
+    }
+
     [HttpGet("inbox")]
     public async Task<IActionResult> Inbox()
     {
