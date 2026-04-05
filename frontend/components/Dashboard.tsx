@@ -194,8 +194,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         <header className="h-20 bg-[#0f172a]/90 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-10 shadow-sm sticky top-0 z-10 flex-shrink-0">
           <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
-            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab === 'TFS' ? 'TFS / Azure DevOps' : activeTab}
-            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab === 'ToplantıKaydi' ? 'Toplantı Kaydını Raporla' : activeTab}
+            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab === 'TFS' ? 'TFS / Azure DevOps' : activeTab === 'ToplantıKaydi' ? 'Toplantı Kaydını Raporla' : activeTab}
           </span>
           <img 
             src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Yap%C4%B1_Kredi_logo.svg/1024px-Yap%C4%B1_Kredi_logo.svg.png" 
