@@ -123,6 +123,54 @@ const renderReportData = (data: unknown): React.ReactNode => {
   return <p className="text-slate-400 text-sm">{String(data)}</p>;
 };
 
+// ─── Status color helper ─────────────────────────────────────────────────────
+
+interface StatusColors {
+  border: string;
+  bg: string;
+  dot: string;
+  pill: string;
+  pillText: string;
+}
+
+const getStatusColors = (report: WeeklyReportDto | null | undefined): StatusColors => {
+  if (!report) {
+    return {
+      border: 'border-red-500/60',
+      bg: 'bg-red-950/15',
+      dot: 'bg-red-500',
+      pill: 'text-red-400 bg-red-500/10 border-red-500/20',
+      pillText: 'Rapor Yok',
+    };
+  }
+  if (report.status === 'reviewed') {
+    return {
+      border: 'border-emerald-500/60',
+      bg: 'bg-emerald-900/10',
+      dot: 'bg-emerald-400',
+      pill: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+      pillText: 'İncelendi',
+    };
+  }
+  if (report.readyToReview) {
+    return {
+      border: 'border-amber-500/60',
+      bg: 'bg-amber-900/10',
+      dot: 'bg-amber-400',
+      pill: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+      pillText: 'İncelemede',
+    };
+  }
+  // draft / generated / manual – saved but not yet submitted
+  return {
+    border: 'border-blue-500/60',
+    bg: 'bg-blue-900/10',
+    dot: 'bg-blue-400',
+    pill: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+    pillText: 'Taslak',
+  };
+};
+
 // ─── Tree builder ─────────────────────────────────────────────────────────────
 
 function buildReportTree(accessUsernames: string[], orgUsers: OrgUserFull[]): ReportTreeNode[] {
@@ -178,18 +226,16 @@ const TreePersonRow: React.FC<{
 }> = ({ node, depth, orgUsers, userReports, getUserInfo, onViewReport, projectOwner, accessToken }) => {
   const info = getUserInfo(node.username);
   const report = userReports[node.username];
-  const hasReport = report !== null && report !== undefined;
   const isOwner = node.username === projectOwner;
   const orgUser = orgUsers.find(u => u.username === node.username);
+  const colors = getStatusColors(report);
 
   return (
     <div>
       {/* Person row card */}
-      <div className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
-        hasReport ? 'border-emerald-500/50 bg-emerald-900/10' : 'border-red-500/50 bg-red-950/10'
-      }`}>
+      <div className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${colors.border} ${colors.bg}`}>
         {/* Status indicator */}
-        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${hasReport ? 'bg-emerald-400' : 'bg-red-500'}`} />
+        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${colors.dot}`} />
 
         {/* Avatar */}
         <UserAvatar
@@ -214,12 +260,8 @@ const TreePersonRow: React.FC<{
         </div>
 
         {/* Report status pill */}
-        <div className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border flex-shrink-0 ${
-          hasReport
-            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-            : 'text-red-400 bg-red-500/10 border-red-500/20'
-        }`}>
-          {hasReport ? 'Rapor Yazıldı' : 'Rapor Yok'}
+        <div className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border flex-shrink-0 ${colors.pill}`}>
+          {colors.pillText}
         </div>
 
         {/* View button */}
