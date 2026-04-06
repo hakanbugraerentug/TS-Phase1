@@ -17,6 +17,9 @@ public class SaveWeeklyReportRequest
     [JsonPropertyName("reviewer")]
     public string Reviewer { get; set; } = string.Empty;
 
+    [JsonPropertyName("reviewers")]
+    public List<string> Reviewers { get; set; } = new();
+
     [JsonPropertyName("readyToReview")]
     public bool ReadyToReview { get; set; } = false;
 
@@ -46,6 +49,9 @@ public class WeeklyReportDto
 
     [JsonPropertyName("reviewer")]
     public string Reviewer { get; set; } = string.Empty;
+
+    [JsonPropertyName("reviewers")]
+    public List<string> Reviewers { get; set; } = new();
 
     [JsonPropertyName("readyToReview")]
     public bool ReadyToReview { get; set; } = false;

@@ -33,6 +33,9 @@ public class WeeklyReport
     [BsonElement("reviewer")]
     public string Reviewer { get; set; } = string.Empty;
 
+    [BsonElement("reviewers")]
+    public List<string> Reviewers { get; set; } = new();
+
     [BsonElement("readyToReview")]
     public bool ReadyToReview { get; set; } = false;
 
