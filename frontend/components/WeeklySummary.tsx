@@ -14,6 +14,8 @@ interface CommentData {
 interface ProjectData {
   id: string;
   title: string;
+  owner?: string;
+  members?: string[];
 }
 
 interface AiReportComment {
@@ -124,62 +126,109 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     setIsSaved(false);
     try {
       // 1. Fetch weekly reports where the current user is listed as a reviewer
-      const reviewerReportsRes = await fetch(`${apiUrl}/api/weekly-reports/all-for-reviewer`, {
-        headers: { Authorization: `Bearer ${user.accessToken}` }
-      });
-      if (!reviewerReportsRes.ok) {
-        throw new Error(`Reviewer raporları alınamadı: HTTP ${reviewerReportsRes.status}`);
-      }
-      const reviewerReports: {
-        id: string;
-        username: string;
-        weekStart: string;
-        author: string;
-        reportData?: {
-          bullet_lines?: BulletLine[];
-        } | null;
-      }[] = await reviewerReportsRes.json();
+      const weekStart = getWeekStart();
+      let reviewerAiComments: AiReportComment[] = [];
+      try {
+        const reviewerReportsRes = await fetch(`${apiUrl}/api/weekly-reports/all-for-reviewer?weekStart=${weekStart}`, {
+          headers: { Authorization: `Bearer ${user.accessToken}` }
+        });
+        if (reviewerReportsRes.ok) {
+          const reviewerReports: {
+            id: string;
+            username: string;
+            weekStart: string;
+            author: string;
+            reportData?: {
+              bullet_lines?: BulletLine[];
+            } | null;
+          }[] = await reviewerReportsRes.json();
 
-      // Extract bullet points from reviewer reports and convert to AiReportComment format
-      const reviewerAiComments: AiReportComment[] = [];
-      for (const report of reviewerReports) {
-        if (!report.reportData?.bullet_lines) continue;
-        let currentProject = report.author || report.username;
-        report.reportData.bullet_lines.forEach((line, lineIdx) => {
-          if (line.bullet0) {
-            currentProject = line.bullet0.replace(/^\[|\]$/g, '');
-          }
-          const allBullets = [
-            ...(line.bullet1 ?? []),
-            ...(line.bullet2 ?? []),
-            ...(line.bullet3 ?? []),
-          ];
-          allBullets.forEach((text, bulletIdx) => {
-            if (!text.trim()) return;
-            reviewerAiComments.push({
-              commentId: `reviewer-${report.id}-${lineIdx}-${bulletIdx}`,
-              date: report.weekStart,
-              username: report.author || report.username,
-              projectName: currentProject,
-              userComment: text,
+          // Extract bullet points from reviewer reports and convert to AiReportComment format
+          for (const report of reviewerReports) {
+            if (!report.reportData?.bullet_lines) continue;
+            let currentProject = report.author || report.username;
+            report.reportData.bullet_lines.forEach((line, lineIdx) => {
+              if (line.bullet0) {
+                currentProject = line.bullet0.replace(/^\[|\]$/g, '');
+              }
+              const allBullets = [
+                ...(line.bullet1 ?? []),
+                ...(line.bullet2 ?? []),
+                ...(line.bullet3 ?? []),
+              ];
+              allBullets.forEach((text, bulletIdx) => {
+                if (!text.trim()) return;
+                reviewerAiComments.push({
+                  commentId: `reviewer-${report.id}-${lineIdx}-${bulletIdx}`,
+                  date: report.weekStart,
+                  username: report.author || report.username,
+                  projectName: currentProject,
+                  userComment: text,
+                });
+              });
             });
-          });
-        });
+          }
+        } else {
+          console.warn(`Reviewer raporları alınamadı: HTTP ${reviewerReportsRes.status}, sadece commentler kullanılacak.`);
+        }
+      } catch (reviewerErr) {
+        console.warn('Reviewer raporları çekilirken hata oluştu, sadece commentler kullanılacak:', reviewerErr);
       }
 
-      // 2. Collect comments written by the current user
-      const myComments: AiReportComment[] = allComments
-        .filter(c => c.username === user.username)
-        .map(c => {
-          const project = allProjects.find(p => p.id === c.projectId);
-          return {
-            commentId: c.id,
-            date: c.date ? c.date.substring(0, 10) : new Date().toISOString().substring(0, 10),
-            username: c.username,
-            projectName: project ? project.title : c.projectId,
-            userComment: c.content,
-          };
-        });
+      // 2. Collect relevant comments: on projects I'm involved in, within last 7 days
+      let myComments: AiReportComment[] = [];
+      try {
+        const [freshCommentsRes, freshProjectsRes] = await Promise.all([
+          fetch(`${apiUrl}/api/comments`, { headers: { Authorization: `Bearer ${user.accessToken}` } }),
+          fetch(`${apiUrl}/api/projects`, { headers: { Authorization: `Bearer ${user.accessToken}` } })
+        ]);
+        const freshComments: CommentData[] = freshCommentsRes.ok ? await freshCommentsRes.json() : [];
+        const freshProjects: ProjectData[] = freshProjectsRes.ok ? await freshProjectsRes.json() : [];
+
+        // Find projects where the current user is a member, owner, or has written comments
+        const myProjectIds = new Set<string>();
+        for (const project of freshProjects) {
+          const isMember = (project.members ?? []).includes(user.username);
+          const isOwner = project.owner === user.username;
+          if (isMember || isOwner) {
+            myProjectIds.add(project.id);
+          }
+        }
+        // Also include projects where the user has written comments (user is involved even if not in members list)
+        for (const comment of freshComments) {
+          if (comment.username === user.username) {
+            myProjectIds.add(comment.projectId);
+          }
+        }
+
+        // Calculate date threshold: 7 days ago at midnight
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        sevenDaysAgo.setHours(0, 0, 0, 0);
+
+        myComments = freshComments
+          .filter(c => {
+            // 1. comment must be on one of my projects
+            const isMyProject = myProjectIds.has(c.projectId);
+            // 2. date must be within last 7 days
+            const commentDate = c.date ? new Date(c.date) : null;
+            const isRecent = commentDate ? commentDate >= sevenDaysAgo : false;
+
+            return isMyProject && isRecent;
+          })
+          .map(c => {
+            const project = freshProjects.find(p => p.id === c.projectId);
+            return {
+              commentId: c.id,
+              date: c.date ? c.date.substring(0, 10) : new Date().toISOString().substring(0, 10),
+              username: c.username,
+              projectName: project ? project.title : c.projectId,
+              userComment: c.content,
+            };
+          });
+      } catch (commentErr) {
+        console.warn('Commentler çekilirken hata oluştu, sadece reviewer raporları kullanılacak:', commentErr);
+      }
 
       // Combine both sources
       const aiComments: AiReportComment[] = [...reviewerAiComments, ...myComments];

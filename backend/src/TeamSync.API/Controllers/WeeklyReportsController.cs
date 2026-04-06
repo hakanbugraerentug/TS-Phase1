@@ -238,20 +238,28 @@ public class WeeklyReportsController : ControllerBase
     }
 
     [HttpGet("all-for-reviewer")]
-    public async Task<IActionResult> AllForReviewer()
+    public async Task<IActionResult> AllForReviewer([FromQuery] string? weekStart)
     {
         var username = User.Identity?.Name;
         if (string.IsNullOrEmpty(username))
             return Unauthorized();
 
-        // Collect reports for this user as reviewer
-        var reports = await _repo.GetByReviewerAsync(username);
+        // Collect reports for this user as reviewer (optionally filtered by week)
+        List<WeeklyReport> reports;
+        if (!string.IsNullOrEmpty(weekStart))
+            reports = await _repo.GetByReviewerAndWeekAsync(username, weekStart);
+        else
+            reports = await _repo.GetByReviewerAsync(username);
 
         // Also collect reports for users who have delegated to this user
         var delegations = await _delegationRepo.GetActiveDelegationsForDelegateAsync(username);
         foreach (var delegation in delegations)
         {
-            var delegatedReports = await _repo.GetByReviewerAsync(delegation.DelegatorUsername);
+            List<WeeklyReport> delegatedReports;
+            if (!string.IsNullOrEmpty(weekStart))
+                delegatedReports = await _repo.GetByReviewerAndWeekAsync(delegation.DelegatorUsername, weekStart);
+            else
+                delegatedReports = await _repo.GetByReviewerAsync(delegation.DelegatorUsername);
             reports.AddRange(delegatedReports);
         }
 

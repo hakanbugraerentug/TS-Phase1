@@ -63,6 +63,18 @@ public class WeeklyReportRepository : IWeeklyReportRepository
         return await _collection.Find(filter).ToListAsync();
     }
 
+    public async Task<List<WeeklyReport>> GetByReviewerAndWeekAsync(string reviewerUsername, string weekStart)
+    {
+        var filter = Builders<WeeklyReport>.Filter.And(
+            Builders<WeeklyReport>.Filter.Or(
+                Builders<WeeklyReport>.Filter.Eq(r => r.Reviewer, reviewerUsername),
+                Builders<WeeklyReport>.Filter.AnyEq(r => r.Reviewers, reviewerUsername)
+            ),
+            Builders<WeeklyReport>.Filter.Eq(r => r.WeekStart, weekStart)
+        );
+        return await _collection.Find(filter).ToListAsync();
+    }
+
     public async Task<List<WeeklyReport>> GetReadyToReviewByReviewerAsync(string reviewerUsername)
     {
         var filter = Builders<WeeklyReport>.Filter.And(
