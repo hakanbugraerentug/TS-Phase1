@@ -198,30 +198,41 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     if (!reportData) return;
     setIsSaving(true);
     try {
-      // Fetch manager chain (reviewer) from org-chart
+      // Build reviewer list: all team leaders + direct manager (only 1)
       let reviewerUsername = '';
       const reviewers: string[] = [];
       try {
+        // Fetch user's teams to collect all team leaders
+        const teamsRes = await fetch(`${apiUrl}/api/teams/my-teams`, {
+          headers: { Authorization: `Bearer ${user.accessToken}` },
+        });
+        if (teamsRes.ok) {
+          const teams: Array<{ leader: string }> = await teamsRes.json();
+          for (const team of teams) {
+            if (team.leader && !reviewers.includes(team.leader)) {
+              reviewers.push(team.leader);
+            }
+          }
+        }
+      } catch {
+        // proceed without team leaders if fetch fails
+      }
+      try {
+        // Fetch direct manager (only 1 level, not the full chain)
         const orgRes = await fetch(`${apiUrl}/api/users/${user.username}/org-chart`, {
           headers: { Authorization: `Bearer ${user.accessToken}` },
         });
         if (orgRes.ok) {
           const orgData = await orgRes.json();
-          // Direct manager (team leader) is the primary reviewer
-          reviewerUsername = orgData?.manager?.username ?? '';
-          // Traverse full manager chain and add all levels to reviewers
-          let currentManager = orgData?.manager;
-          while (currentManager) {
-            const managerUsername: string = currentManager.username ?? '';
-            if (managerUsername && !reviewers.includes(managerUsername)) {
-              reviewers.push(managerUsername);
-            }
-            currentManager = currentManager.manager;
+          const managerUsername: string = orgData?.manager?.username ?? '';
+          if (managerUsername && !reviewers.includes(managerUsername)) {
+            reviewers.push(managerUsername);
           }
         }
       } catch {
-        // proceed without reviewer if fetch fails
+        // proceed without manager if fetch fails
       }
+      reviewerUsername = reviewers[0] ?? '';
 
       const response = await fetch(`${apiUrl}/api/weekly-reports`, {
         method: 'POST',
