@@ -9,6 +9,7 @@ interface WeeklyReportDto {
   savedAt: string;
   author: string;
   reviewer: string;
+  reviewers?: string[];
   readyToReview: boolean;
   status: string;
 }
@@ -350,7 +351,7 @@ export const MyReports: React.FC<{ user: User }> = ({ user }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-500 font-black">
-                      {report.reviewer || '-'}
+                      {(report.reviewers && report.reviewers.length > 0) ? report.reviewers.join(', ') : (report.reviewer || '-')}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="text-blue-500 text-[9px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
@@ -420,7 +421,7 @@ export const MyReports: React.FC<{ user: User }> = ({ user }) => {
               </div>
               <div>
                 <p className="text-[8px] font-black uppercase tracking-widest text-slate-600">İnceleyen</p>
-                <p className="text-xs font-black text-slate-300 mt-1">{selectedReport.reviewer || '-'}</p>
+                <p className="text-xs font-black text-slate-300 mt-1">{(selectedReport.reviewers && selectedReport.reviewers.length > 0) ? selectedReport.reviewers.join(', ') : (selectedReport.reviewer || '-')}</p>
               </div>
               <div>
                 <p className="text-[8px] font-black uppercase tracking-widest text-slate-600">Kaydedilme</p>
