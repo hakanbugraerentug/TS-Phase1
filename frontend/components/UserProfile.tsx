@@ -101,7 +101,7 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, user, onBack
   const getUserInfo = (uname: string): OrgUserInfo | undefined =>
     allUsers.find(u => u.username === uname);
 
-  // Build superiors list: leaders and project owners for each team the user belongs to
+  // Build superiors list: leaders, project owners, and full org hierarchy manager chain
   const buildSuperiors = (): Superior[] => {
     const result: Superior[] = [];
     const seen = new Set<string>();
@@ -132,6 +132,31 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, user, onBack
             }
           }
         }
+      }
+    }
+
+    // Walk up the full org hierarchy manager chain
+    if (profileUser) {
+      const getUserByDn = (dn: string): OrgUserInfo | undefined =>
+        allUsers.find(u => u.distinguishedName === dn);
+
+      let currentManagerDn = profileUser.manager;
+      let isFirst = true;
+      while (currentManagerDn) {
+        const managerUser = getUserByDn(currentManagerDn);
+        if (!managerUser) break;
+
+        const key = `org-${managerUser.username}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          result.push({
+            person: managerUser,
+            role: 'Yönetici',
+            teamTitle: isFirst ? 'Doğrudan Yönetici' : 'Üst Yönetici',
+          });
+        }
+        isFirst = false;
+        currentManagerDn = managerUser.manager;
       }
     }
 
