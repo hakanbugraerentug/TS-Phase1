@@ -23,11 +23,18 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     # Set to None to let pyannote auto-detect the number of speakers
     meeting_num_speakers: Optional[int] = None
-    # Optional: path to the directory that contains the
-    # models--pyannote--speaker-diarization-3.1 HF cache folder.
-    # When set, the model is loaded fully offline from that directory.
-    # When empty, the model is downloaded from HuggingFace using HF_TOKEN.
+    # Optional: path to the directory that contains the speaker-diarization-3.1
+    # and segmentation-3.0 sub-directories (e.g. server/models).
+    # When set, the diarization pipeline and segmentation model are loaded fully
+    # offline from that directory.
+    # When empty, the models are downloaded from HuggingFace using HF_TOKEN.
     pyannote_local_model_dir: str = ""
+
+    # Optional: path to the directory that contains the whisper-medium
+    # sub-directory (e.g. server/models).
+    # When set, the Whisper model is loaded fully offline from that directory.
+    # When empty, the model is downloaded from the faster-whisper model hub.
+    whisper_local_model_dir: str = ""
 
     # MongoDB (for caching meeting results)
     mongodb_url: str = "mongodb://localhost:27017"
