@@ -82,15 +82,39 @@ def create_job(username: str, filename: str) -> str:
 
 def _convert_mp4_to_wav(mp4_path: str, wav_path: str) -> None:
     """Convert MP4 to 16 kHz mono WAV using ffmpeg."""
-    subprocess.run(
+    # First, verify the file contains an audio stream.
+    probe = subprocess.run(
         [
-            "ffmpeg", "-y", "-i", mp4_path,
-            "-ar", "16000", "-ac", "1",
-            wav_path,
+            "ffprobe", "-v", "error",
+            "-select_streams", "a",
+            "-show_entries", "stream=codec_type",
+            "-of", "csv=p=0",
+            mp4_path,
         ],
-        check=True,
         capture_output=True,
+        text=True,
     )
+    if probe.returncode != 0 or "audio" not in probe.stdout:
+        raise RuntimeError(
+            "Yüklenen video dosyasında ses akışı bulunamadı. "
+            "Lütfen ses içeren bir MP4 dosyası yükleyin."
+        )
+
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", mp4_path,
+                "-ar", "16000", "-ac", "1",
+                wav_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.decode(errors="replace")
+        raise RuntimeError(
+            f"FFmpeg dönüştürme hatası (çıkış kodu {exc.returncode}):\n{stderr}"
+        ) from exc
 
 
 def _run_diarization(wav_path: str, rttm_path: str, hf_token: str, num_speakers: Optional[int] = None, local_model_dir: str = "") -> None:
