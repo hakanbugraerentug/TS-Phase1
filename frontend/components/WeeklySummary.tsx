@@ -207,13 +207,16 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
         });
         if (orgRes.ok) {
           const orgData = await orgRes.json();
-          // Direct manager (team leader)
+          // Direct manager (team leader) is the primary reviewer
           reviewerUsername = orgData?.manager?.username ?? '';
-          if (reviewerUsername) reviewers.push(reviewerUsername);
-          // Manager above the team leader (müdür)
-          const seniorManagerUsername = orgData?.manager?.manager?.username ?? '';
-          if (seniorManagerUsername && !reviewers.includes(seniorManagerUsername)) {
-            reviewers.push(seniorManagerUsername);
+          // Traverse full manager chain and add all levels to reviewers
+          let currentManager = orgData?.manager;
+          while (currentManager) {
+            const managerUsername: string = currentManager.username ?? '';
+            if (managerUsername && !reviewers.includes(managerUsername)) {
+              reviewers.push(managerUsername);
+            }
+            currentManager = currentManager.manager;
           }
         }
       } catch {
