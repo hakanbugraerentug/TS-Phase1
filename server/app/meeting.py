@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import os
-import shutil
 import subprocess
 import tempfile
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -82,10 +82,18 @@ def create_job(username: str, filename: str) -> str:
 
 def _convert_mp4_to_wav(mp4_path: str, wav_path: str) -> None:
     """Convert MP4 to 16 kHz mono WAV using ffmpeg."""
+    try:
+        import imageio_ffmpeg
+        ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+        ffprobe_path = ffmpeg_path.replace("ffmpeg", "ffprobe")
+    except ImportError:
+        ffmpeg_path = "ffmpeg"
+        ffprobe_path = "ffprobe"
+
     # First, verify the file contains an audio stream.
     probe = subprocess.run(
         [
-            "ffprobe", "-v", "error",
+            ffprobe_path, "-v", "error",
             "-select_streams", "a",
             "-show_entries", "stream=codec_type",
             "-of", "csv=p=0",
@@ -103,7 +111,7 @@ def _convert_mp4_to_wav(mp4_path: str, wav_path: str) -> None:
     try:
         subprocess.run(
             [
-                "ffmpeg", "-y", "-i", mp4_path,
+                ffmpeg_path, "-y", "-i", mp4_path,
                 "-ar", "16000", "-ac", "1",
                 wav_path,
             ],
@@ -121,39 +129,46 @@ def _run_diarization(wav_path: str, rttm_path: str, hf_token: str, num_speakers:
     """Run pyannote speaker diarization and write RTTM file."""
     global _pyannote_pipeline
     if _pyannote_pipeline is None:
-        from pyannote.audio import Pipeline as PyannotePipeline  # heavy import
         if local_model_dir:
             import yaml
+            from pyannote.audio import Model as PyannoteModel
+            from pyannote.audio.pipelines import SpeakerDiarization
 
             diar_dir = os.path.join(local_model_dir, "speaker-diarization-3.1")
-            seg_dir = os.path.abspath(os.path.join(local_model_dir, "segmentation-3.0"))
+            seg_dir = os.path.join(local_model_dir, "segmentation-3.0")
 
-            # Read the pipeline config and patch the segmentation entry to use
-            # the local model directory instead of the HuggingFace model ID so
-            # that no internet access is required for the segmentation model.
+            # Read pipeline config for hyperparameters
             config_path = os.path.join(diar_dir, "config.yaml")
             with open(config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
-            config["pipeline"]["params"]["segmentation"] = seg_dir
 
-            # Write the patched config alongside the original model files in a
-            # temporary directory, then load from there.
-            patched_dir = tempfile.mkdtemp(prefix="pyannote_patched_")
-            try:
-                for fname in os.listdir(diar_dir):
-                    src = os.path.join(diar_dir, fname)
-                    if os.path.isfile(src):
-                        shutil.copy2(src, patched_dir)
-                with open(os.path.join(patched_dir, "config.yaml"), "w", encoding="utf-8") as f:
-                    yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
-                _pyannote_pipeline = PyannotePipeline.from_pretrained(patched_dir)
-            finally:
-                shutil.rmtree(patched_dir, ignore_errors=True)
+            # Load segmentation model from local files
+            seg_model = PyannoteModel.from_pretrained(
+                Path(seg_dir) / "pytorch_model.bin"
+            )
+
+            pipeline_params = config.get("pipeline", {}).get("params", {})
+            params = config.get("params", {})
+
+            # Build pipeline directly from class — bypasses from_pretrained entirely
+            _pyannote_pipeline = SpeakerDiarization(
+                segmentation=seg_model,
+                embedding=pipeline_params.get("embedding", "pyannote/wespeaker-voxceleb-resnet34-LM"),
+                embedding_batch_size=pipeline_params.get("embedding_batch_size", 32),
+                embedding_exclude_overlap=pipeline_params.get("embedding_exclude_overlap", True),
+                clustering=pipeline_params.get("clustering", "AgglomerativeClustering"),
+            )
+
+            # Apply tuned hyperparameters from config
+            _pyannote_pipeline.instantiate(params)
+
         else:
+            from pyannote.audio import Pipeline as PyannotePipeline
             _pyannote_pipeline = PyannotePipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
-                use_auth_token=hf_token,
+                token=hf_token,
             )
+
     kwargs: Dict[str, Any] = {}
     if num_speakers is not None:
         kwargs["num_speakers"] = num_speakers
