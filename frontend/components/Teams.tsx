@@ -16,7 +16,7 @@ interface AppUser {
   fullName: string;
 }
 
-export const Teams: React.FC<{ user: User }> = ({ user }) => {
+export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) => void }> = ({ user, onViewProfile }) => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
@@ -538,7 +538,9 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
               <div className="flex gap-8 items-center">
                 {/* Leader Avatar */}
                 <div className="relative flex-shrink-0">
-                  <UserAvatar username={team.leader || ''} displayName={getUserFullName(team.leader || '')} accessToken={user.accessToken} size="lg" />
+                  <button onClick={(e) => { e.stopPropagation(); onViewProfile?.(team.leader || ''); }} className="hover:opacity-80 transition-opacity">
+                    <UserAvatar username={team.leader || ''} displayName={getUserFullName(team.leader || '')} accessToken={user.accessToken} size="lg" />
+                  </button>
                   <span className="absolute -bottom-1 -right-1 bg-yellow-400 text-black text-[8px] font-black px-1.5 py-0.5 rounded-full leading-none">👑</span>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -585,10 +587,13 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
 
             <div className="space-y-3 mb-6">
               {/* Leader row */}
-              <div className="p-4 bg-blue-600/10 border border-blue-500/30 rounded-2xl flex items-center gap-3">
+              <div
+                className="p-4 bg-blue-600/10 border border-blue-500/30 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-blue-600/20 transition-colors group"
+                onClick={() => onViewProfile?.(selectedTeam.leader)}
+              >
                 <UserAvatar username={selectedTeam.leader} displayName={getUserFullName(selectedTeam.leader)} accessToken={user.accessToken} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-black text-sm italic">{getUserFullName(selectedTeam.leader)}</p>
+                  <p className="text-white font-black text-sm italic group-hover:text-blue-300 transition-colors">{getUserFullName(selectedTeam.leader)}</p>
                   <p className="text-slate-500 text-[10px]">{selectedTeam.leader}</p>
                 </div>
                 <span className="text-[8px] font-black bg-yellow-500 text-black px-3 py-1 rounded-full uppercase flex-shrink-0">👑 Lider</span>
@@ -597,11 +602,16 @@ export const Teams: React.FC<{ user: User }> = ({ user }) => {
               {/* Member rows */}
               {selectedTeam.members?.filter(m => m !== selectedTeam.leader).map((m, i) => (
                 <div key={i} className="p-4 bg-slate-900/40 border border-white/5 rounded-2xl flex items-center gap-3">
-                  <UserAvatar username={m} displayName={getUserFullName(m)} accessToken={user.accessToken} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-bold text-sm italic">{getUserFullName(m)}</p>
-                    <p className="text-slate-500 text-[10px]">{m}</p>
-                  </div>
+                  <button
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity group"
+                    onClick={() => onViewProfile?.(m)}
+                  >
+                    <UserAvatar username={m} displayName={getUserFullName(m)} accessToken={user.accessToken} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold text-sm italic group-hover:text-blue-300 transition-colors">{getUserFullName(m)}</p>
+                      <p className="text-slate-500 text-[10px]">{m}</p>
+                    </div>
+                  </button>
                   {/* Leader actions */}
                   {user.username === selectedTeam.leader && (
                     <div className="flex gap-2 flex-shrink-0">

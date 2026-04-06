@@ -12,6 +12,7 @@ import { TfsPage } from './TfsPage';
 import { MyReports } from './MyReports';
 import { MeetingReport } from './MeetingReport';
 import { isElevatedTitle } from '../utils/titleHelpers';
+import { UserProfile } from './UserProfile';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -31,6 +32,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showTfsModal, setShowTfsModal] = useState(false);
   const [selectedProjectTitle, setSelectedProjectTitle] = useState<string>('');
+  const [profileUsername, setProfileUsername] = useState<string | null>(null);
+  const [profileReturnTab, setProfileReturnTab] = useState<string>('Anasayfa');
   const hasElevatedTitle = isElevatedTitle(user.title ?? '');
 
   // TFS credential form state
@@ -69,6 +72,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const handleBackToProjects = () => {
     setSelectedProjectId(null);
     setActiveTab('Projelerim');
+  };
+
+  const handleViewProfile = (username: string) => {
+    setProfileReturnTab(activeTab);
+    setProfileUsername(username);
+  };
+
+  const handleBackFromProfile = () => {
+    setProfileUsername(null);
+    setActiveTab(profileReturnTab);
   };
 
   const handleTfsSave = async () => {
@@ -135,6 +148,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
                 onClick={() => {
                   setActiveTab(item.id);
                   setSelectedProjectId(null);
+                  setProfileUsername(null);
                 }}
                 className={`w-full flex items-center gap-3 px-5 py-3.5 rounded-xl transition-all duration-300 font-black text-[10px] uppercase tracking-widest border ${
                   activeTab === item.id && item.id === 'NasilKullanilir'
@@ -175,10 +189,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
         </div>
 
         <div className="mt-auto p-6 border-t border-white/5 bg-[#020617]/40">
-          <div className="flex items-center gap-3 mb-6 px-1 group cursor-pointer">
+          <div className="flex items-center gap-3 mb-6 px-1 group cursor-pointer" onClick={() => handleViewProfile(user.username)}>
             <UserAvatar username={user.username} displayName={user.name} accessToken={user.accessToken} size="md" />
             <div className="overflow-hidden">
-              <p className="text-xs font-black truncate text-slate-200">{user.name}</p>
+              <p className="text-xs font-black truncate text-slate-200 group-hover:text-blue-300 transition-colors">{user.name}</p>
               <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Aktif Kullanıcı</p>
             </div>
           </div>
@@ -194,7 +208,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         <header className="h-20 bg-[#0f172a]/90 backdrop-blur-2xl border-b border-white/5 flex items-center justify-between px-10 shadow-sm sticky top-0 z-10 flex-shrink-0">
           <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">
-            {activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab === 'TFS' ? 'TFS / Azure DevOps' : activeTab === 'ToplantıKaydi' ? 'Toplantı Kaydını Raporla' : activeTab}
+            {profileUsername ? `Profil / ${profileUsername}` : activeTab === 'ProjeDetay' ? `Projeler / ${selectedProjectTitle}` : activeTab === 'Sema' ? 'Organizasyon Şeması' : activeTab === 'Ekipler' ? 'Ekipler' : activeTab === 'NasilKullanilir' ? 'Nasıl Kullanılır' : activeTab === 'Anasayfa' ? 'Anasayfa' : activeTab === 'TFS' ? 'TFS / Azure DevOps' : activeTab === 'ToplantıKaydi' ? 'Toplantı Kaydını Raporla' : activeTab}
           </span>
           <img 
             src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Yap%C4%B1_Kredi_logo.svg/1024px-Yap%C4%B1_Kredi_logo.svg.png" 
@@ -204,16 +218,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
         </header>
 
         <main className="p-10 flex-grow relative overflow-y-auto bg-gradient-to-b from-[#0f172a] to-[#020617] scroll-smooth">
-          {activeTab === 'Anasayfa' ? (
+          {profileUsername ? (
+            <UserProfile
+              username={profileUsername}
+              user={user}
+              onBack={handleBackFromProfile}
+              onViewProfile={handleViewProfile}
+            />
+          ) : activeTab === 'Anasayfa' ? (
             <HomePage user={user} onNavigateToProjects={() => setActiveTab('Projelerim')} onNavigateToTeams={() => setActiveTab('Ekipler')} isElevatedUser={hasElevatedTitle} />
           ) : activeTab === 'Projelerim' ? (
             <Projects user={user} onNavigateToReports={() => setActiveTab('Raporlar')} onSelectProject={handleProjectSelect} />
           ) : activeTab === 'Raporlar' ? (
             <WeeklySummary user={user} />
           ) : activeTab === 'Ekipler' ? (
-            <Teams user={user} />
+            <Teams user={user} onViewProfile={handleViewProfile} />
           ) : activeTab === 'Sema' ? (
-            <OrgChart user={user} />
+            <OrgChart user={user} onViewProfile={handleViewProfile} />
           ) : activeTab === 'ProjeDetay' ? (
             selectedProjectId ? <ProjectDetail projectId={selectedProjectId} projectTitle={selectedProjectTitle} onBack={handleBackToProjects} user={user} /> : null
           ) : activeTab === 'NasilKullanilir' ? (
