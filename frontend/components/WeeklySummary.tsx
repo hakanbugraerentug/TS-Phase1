@@ -123,48 +123,69 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     setGenerateError(null);
     setIsSaved(false);
     try {
-      // Determine sub-users (members of teams where current user is leader)
-      const teamsRes = await fetch(`${apiUrl}/api/teams`, {
+      // 1. Fetch weekly reports where the current user is listed as a reviewer
+      const reviewerReportsRes = await fetch(`${apiUrl}/api/weekly-reports/all-for-reviewer`, {
         headers: { Authorization: `Bearer ${user.accessToken}` }
       });
-      if (!teamsRes.ok) {
-        throw new Error(`Takım verisi alınamadı: HTTP ${teamsRes.status}`);
+      if (!reviewerReportsRes.ok) {
+        throw new Error(`Reviewer raporları alınamadı: HTTP ${reviewerReportsRes.status}`);
       }
-      const teams: { leader: string; members: string[]; projectId?: string }[] = await teamsRes.json();
+      const reviewerReports: {
+        id: string;
+        username: string;
+        weekStart: string;
+        author: string;
+        reportData?: {
+          bullet_lines?: BulletLine[];
+        } | null;
+      }[] = await reviewerReportsRes.json();
 
-      const subMembers: string[] = [];
-      const teamProjectIds = new Set<string>();
-      for (const team of teams) {
-        if (team.leader === user.username) {
-          subMembers.push(...team.members);
-          if (team.projectId) teamProjectIds.add(team.projectId);
+      // Extract bullet points from reviewer reports and convert to AiReportComment format
+      const reviewerAiComments: AiReportComment[] = [];
+      for (const report of reviewerReports) {
+        if (!report.reportData?.bullet_lines) continue;
+        let currentProject = report.author || report.username;
+        for (const line of report.reportData.bullet_lines) {
+          if (line.bullet0) {
+            currentProject = line.bullet0.replace(/^\[|\]$/g, '');
+          }
+          const allBullets = [
+            ...(line.bullet1 ?? []),
+            ...(line.bullet2 ?? []),
+            ...(line.bullet3 ?? []),
+          ];
+          for (const text of allBullets) {
+            if (!text.trim()) continue;
+            reviewerAiComments.push({
+              commentId: `reviewer-${report.id}-${reviewerAiComments.length}`,
+              date: report.weekStart,
+              username: report.author || report.username,
+              projectName: currentProject,
+              userComment: text,
+            });
+          }
         }
       }
-      const targetUsers = [...new Set([user.username, ...subMembers])];
 
-      // Filter comments from the last 7 days for target users in the leader's team projects
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      const recentComments = allComments.filter(c =>
-        targetUsers.includes(c.username) &&
-        new Date(c.date) >= oneWeekAgo &&
-        (teamProjectIds.size === 0 || teamProjectIds.has(c.projectId))
-      );
+      // 2. Collect comments written by the current user
+      const myComments: AiReportComment[] = allComments
+        .filter(c => c.username === user.username)
+        .map(c => {
+          const project = allProjects.find(p => p.id === c.projectId);
+          return {
+            commentId: c.id,
+            date: c.date ? c.date.substring(0, 10) : new Date().toISOString().substring(0, 10),
+            username: c.username,
+            projectName: project ? project.title : c.projectId,
+            userComment: c.content,
+          };
+        });
 
-      // Map projectId to projectName and build AI request payload
-      const aiComments: AiReportComment[] = recentComments.map(c => {
-        const project = allProjects.find(p => p.id === c.projectId);
-        return {
-          commentId: c.id,
-          date: c.date ? c.date.substring(0, 10) : new Date().toISOString().substring(0, 10),
-          username: c.username,
-          projectName: project ? project.title : c.projectId,
-          userComment: c.content
-        };
-      });
+      // Combine both sources
+      const aiComments: AiReportComment[] = [...reviewerAiComments, ...myComments];
 
       if (aiComments.length === 0) {
-        throw new Error('Hiç yorum bulunamadı. Önce proje yorumları ekleyin.');
+        throw new Error('Hiç veri bulunamadı. Reviewer olarak atandığınız rapor veya kendi yorumlarınız bulunmuyor.');
       }
 
       const payload = { comments: aiComments, prompt: prompt || '' };
