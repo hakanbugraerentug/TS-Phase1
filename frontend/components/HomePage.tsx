@@ -10,6 +10,7 @@ interface Project {
   description: string;
   owner: string;
   members: string[];
+  ilgiliEkipIdleri?: string[];
 }
 
 interface Team {
@@ -18,6 +19,7 @@ interface Team {
   description: string;
   leader: string;
   members: string[];
+  projectId?: string;
 }
 
 interface WeeklyComment {
@@ -132,11 +134,28 @@ export const HomePage: React.FC<HomePageProps> = ({ user, onNavigateToProjects, 
         fetch(`${apiUrl}/api/users/${user.username}/org-chart`, { headers }),
       ]);
 
-      // Projects where user is member or owner
+      // Derive teams the user belongs to first (needed for project filtering)
+      let myTeamIds = new Set<string>();
+      if (teamRes.ok) {
+        const teamData: Team[] = await teamRes.json();
+        const myTeams = (teamData || []).filter(
+          t => t.leader === user.username || (t.members || []).includes(user.username)
+        );
+        myTeamIds = new Set(myTeams.map(t => t.id));
+
+        if (!isElevatedUser) {
+          setTeams(myTeams);
+        }
+      }
+
+      // Projects where user is owner, direct member, or a member of an assigned team
       if (projRes.ok) {
         const data: Project[] = await projRes.json();
         const myProjects = (data || []).filter(
-          p => p.owner === user.username || (p.members || []).includes(user.username)
+          p =>
+            p.owner === user.username ||
+            (p.members || []).includes(user.username) ||
+            (p.ilgiliEkipIdleri || []).some(teamId => myTeamIds.has(teamId))
         );
         setProjects(myProjects);
 
@@ -164,15 +183,6 @@ export const HomePage: React.FC<HomePageProps> = ({ user, onNavigateToProjects, 
             setWeeklyComments(commentsWithTitles);
           }
         }
-      }
-
-      // Teams where user is member or leader (only for non-elevated users)
-      if (teamRes.ok && !isElevatedUser) {
-        const data: Team[] = await teamRes.json();
-        const myTeams = (data || []).filter(
-          t => t.leader === user.username || (t.members || []).includes(user.username)
-        );
-        setTeams(myTeams);
       }
 
       // Org chart info for directorate
