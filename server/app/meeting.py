@@ -83,17 +83,24 @@ def create_job(username: str, filename: str) -> str:
 def _convert_mp4_to_wav(mp4_path: str, wav_path: str) -> None:
     """Convert MP4 to 16 kHz mono WAV using ffmpeg."""
     # First, verify the file contains an audio stream.
-    probe = subprocess.run(
-        [
-            "ffprobe", "-v", "error",
-            "-select_streams", "a",
-            "-show_entries", "stream=codec_type",
-            "-of", "csv=p=0",
-            mp4_path,
-        ],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        probe = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-select_streams", "a",
+                "-show_entries", "stream=codec_type",
+                "-of", "csv=p=0",
+                mp4_path,
+            ],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "Sunucuda 'ffprobe' bulunamadı. "
+            "Lütfen ffmpeg paketini kurun (örn. 'apt-get install ffmpeg' veya 'brew install ffmpeg')."
+        ) from exc
+
     if probe.returncode != 0 or "audio" not in probe.stdout:
         raise RuntimeError(
             "Yüklenen video dosyasında ses akışı bulunamadı. "
@@ -110,6 +117,11 @@ def _convert_mp4_to_wav(mp4_path: str, wav_path: str) -> None:
             check=True,
             capture_output=True,
         )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "Sunucuda 'ffmpeg' bulunamadı. "
+            "Lütfen ffmpeg paketini kurun (örn. 'apt-get install ffmpeg' veya 'brew install ffmpeg')."
+        ) from exc
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr.decode(errors="replace")
         raise RuntimeError(
