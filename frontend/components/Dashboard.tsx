@@ -241,6 +241,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
             <HowToUse user={user} />
           ) : activeTab === 'TFS' ? (
             <TfsPage user={user} />
+          ) : activeTab === 'Raporlarim' ? (
+            <MyReports user={user} />
           ) : activeTab === 'ToplantıKaydi' ? (
             <MeetingReport user={user} />
           ) : null}
