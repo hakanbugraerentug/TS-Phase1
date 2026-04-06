@@ -469,6 +469,7 @@ export const ProjectDetail: React.FC<{
         <ProjectReportsTab
           projectOwner={projectOwner}
           projectMembers={projectMembers}
+          ilgiliEkipIdleri={ilgiliEkipIdleri}
           allUsers={allUsers}
           user={user}
           apiUrl={apiUrl}
