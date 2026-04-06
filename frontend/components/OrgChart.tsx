@@ -125,20 +125,22 @@ interface PersonNodeProps {
   node: NodeData;
   accessToken: string;
   allTeams?: TeamDto[];
+  onViewProfile?: (username: string) => void;
 }
 
-const PersonNode: React.FC<PersonNodeProps> = ({ node, accessToken, allTeams }) => {
+const PersonNode: React.FC<PersonNodeProps> = ({ node, accessToken, allTeams, onViewProfile }) => {
   const style = node.colorStyle;
   const leaderTeams = allTeams ? allTeams.filter(t => t.leader === node.username) : [];
 
   return (
     <div
-      className={`rounded-2xl border-2 p-3 flex flex-col gap-2 transition-all
+      onClick={() => onViewProfile?.(node.username)}
+      className={`rounded-2xl border-2 p-3 flex flex-col gap-2 transition-all cursor-pointer
         ${style
-          ? `${style.bg} ${style.border}`
+          ? `${style.bg} ${style.border} hover:brightness-125`
           : node.isActiveUser
-            ? 'bg-[#1e293b] border-blue-500 shadow-[0_0_20px_-5px_rgba(59,130,246,0.5)]'
-            : 'bg-[#1e293b]/80 border-white/10'
+            ? 'bg-[#1e293b] border-blue-500 shadow-[0_0_20px_-5px_rgba(59,130,246,0.5)] hover:border-blue-400'
+            : 'bg-[#1e293b]/80 border-white/10 hover:border-white/30'
         }`}
       style={{ width: NODE_W, minHeight: NODE_H }}
     >
@@ -195,9 +197,10 @@ interface NodeRowProps {
   connectorClass: string;
   accessToken: string;
   allTeams?: TeamDto[];
+  onViewProfile?: (username: string) => void;
 }
 
-const NodeRow: React.FC<NodeRowProps> = ({ nodes, connectorClass, accessToken, allTeams }) => {
+const NodeRow: React.FC<NodeRowProps> = ({ nodes, connectorClass, accessToken, allTeams, onViewProfile }) => {
   const chunks = chunkArray<NodeData>(nodes, MAX_PER_ROW);
   return (
     <div className="flex flex-col items-center">
@@ -221,6 +224,7 @@ const NodeRow: React.FC<NodeRowProps> = ({ nodes, connectorClass, accessToken, a
                   node={node}
                   accessToken={accessToken}
                   allTeams={allTeams}
+                  onViewProfile={onViewProfile}
                 />
               </div>
             ))}
@@ -233,7 +237,7 @@ const NodeRow: React.FC<NodeRowProps> = ({ nodes, connectorClass, accessToken, a
 
 // ─── OrgChart ─────────────────────────────────────────────────────────────────
 
-export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
+export const OrgChart: React.FC<{ user: User; onViewProfile?: (username: string) => void }> = ({ user, onViewProfile }) => {
   const [orgData, setOrgData] = useState<OrgChartData | null>(null);
   const [allUsers, setAllUsers] = useState<OrgUser[]>([]);
   const [allTeams, setAllTeams] = useState<TeamDto[]>([]);
@@ -426,6 +430,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
             <PersonNode
               node={{ ...mgr, isActiveUser: false, colorStyle: { bg: LAYER_COLORS.manager.bg, border: LAYER_COLORS.manager.border, text: LAYER_COLORS.manager.text } }}
               accessToken={user.accessToken}
+              onViewProfile={onViewProfile}
             />
             <div
               className={LAYER_COLORS.manager.connector}
@@ -446,6 +451,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
               }))}
               connectorClass={LAYER_COLORS.teamLeader.connector}
               accessToken={user.accessToken}
+              onViewProfile={onViewProfile}
             />
             <div className={LAYER_COLORS.teamLeader.connector} style={{ width: 1, height: V_GAP }} />
           </>
@@ -472,6 +478,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                 <PersonNode
                   node={{ ...s, isActiveUser: false, colorStyle: { bg: LAYER_COLORS.sibling.bg, border: LAYER_COLORS.sibling.border, text: LAYER_COLORS.sibling.text } }}
                   accessToken={user.accessToken}
+                  onViewProfile={onViewProfile}
                 />
               </div>
             ))}
@@ -479,7 +486,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
             {/* Active user */}
             <div className="flex flex-col items-center">
               <div className="bg-blue-500/60" style={{ width: 1, height: CONNECTOR_H }} />
-              <PersonNode node={{ ...orgData, isActiveUser: true }} accessToken={user.accessToken} />
+              <PersonNode node={{ ...orgData, isActiveUser: true }} accessToken={user.accessToken} onViewProfile={onViewProfile} />
             </div>
 
             {/* Right siblings */}
@@ -489,6 +496,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                 <PersonNode
                   node={{ ...s, isActiveUser: false, colorStyle: { bg: LAYER_COLORS.sibling.bg, border: LAYER_COLORS.sibling.border, text: LAYER_COLORS.sibling.text } }}
                   accessToken={user.accessToken}
+                  onViewProfile={onViewProfile}
                 />
               </div>
             ))}
@@ -499,6 +507,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
             nodes={allSiblingNodes}
             connectorClass={LAYER_COLORS.sibling.connector}
             accessToken={user.accessToken}
+            onViewProfile={onViewProfile}
           />
         )}
 
@@ -520,6 +529,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                   connectorClass={LAYER_COLORS.teamLeader.connector}
                   accessToken={user.accessToken}
                   allTeams={allTeams}
+                  onViewProfile={onViewProfile}
                 />
 
                 {/* Each leader's team members — rose */}
@@ -538,6 +548,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                         connectorClass={LAYER_COLORS.teamMember.connector}
                         accessToken={user.accessToken}
                         allTeams={allTeams}
+                        onViewProfile={onViewProfile}
                       />
                     </React.Fragment>
                   );
@@ -555,6 +566,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                       }))}
                       connectorClass={LAYER_COLORS.subordinate.connector}
                       accessToken={user.accessToken}
+                      onViewProfile={onViewProfile}
                     />
                   </>
                 )}
@@ -569,6 +581,7 @@ export const OrgChart: React.FC<{ user: User }> = ({ user }) => {
                 }))}
                 connectorClass={LAYER_COLORS.subordinate.connector}
                 accessToken={user.accessToken}
+                onViewProfile={onViewProfile}
               />
             )}
           </>
