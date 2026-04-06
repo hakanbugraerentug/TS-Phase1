@@ -255,17 +255,25 @@ public class WeeklyReportsController : ControllerBase
             reports.AddRange(delegatedReports);
         }
 
-        var dtos = reports.DistinctBy(r => r.Id).Select(r => new WeeklyReportDto
+        var dtos = reports.DistinctBy(r => r.Id).Select(r =>
         {
-            Id = r.Id,
-            Username = r.Username,
-            WeekStart = r.WeekStart,
-            SavedAt = r.SavedAt,
-            Author = r.Author,
-            Reviewer = r.Reviewer,
-            Reviewers = r.Reviewers,
-            ReadyToReview = r.ReadyToReview,
-            Status = r.Status
+            var reportDataJson = r.ReportData != null
+                ? BsonTypeMapper.MapToDotNetValue(r.ReportData)
+                : null;
+
+            return new WeeklyReportDto
+            {
+                Id = r.Id,
+                Username = r.Username,
+                WeekStart = r.WeekStart,
+                ReportData = reportDataJson,
+                SavedAt = r.SavedAt,
+                Author = r.Author,
+                Reviewer = r.Reviewer,
+                Reviewers = r.Reviewers,
+                ReadyToReview = r.ReadyToReview,
+                Status = r.Status
+            };
         });
         return Ok(dtos);
     }
