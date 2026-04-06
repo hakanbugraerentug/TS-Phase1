@@ -7,6 +7,20 @@ interface AppUser {
   fullName: string;
 }
 
+interface OrgUserFull {
+  username: string;
+  fullName: string;
+  title: string;
+  department: string;
+  distinguishedName: string;
+  manager: string;
+}
+
+interface ReportTreeNode {
+  username: string;
+  children: ReportTreeNode[];
+}
+
 interface WeeklyReportDto {
   id: string;
   username: string;
@@ -109,6 +123,140 @@ const renderReportData = (data: unknown): React.ReactNode => {
   return <p className="text-slate-400 text-sm">{String(data)}</p>;
 };
 
+// ─── Tree builder ─────────────────────────────────────────────────────────────
+
+function buildReportTree(accessUsernames: string[], orgUsers: OrgUserFull[]): ReportTreeNode[] {
+  const usernameSet = new Set(accessUsernames);
+
+  // Map from DN → username, only for project members
+  const dnToUsername = new Map<string, string>();
+  for (const u of orgUsers) {
+    if (usernameSet.has(u.username)) {
+      dnToUsername.set(u.distinguishedName, u.username);
+    }
+  }
+
+  // Create a node for every project member
+  const nodeMap = new Map<string, ReportTreeNode>();
+  for (const username of accessUsernames) {
+    nodeMap.set(username, { username, children: [] });
+  }
+
+  // Wire up parent → child relationships within the project
+  const childSet = new Set<string>();
+  for (const orgUser of orgUsers) {
+    if (!usernameSet.has(orgUser.username)) continue;
+    const parentUsername = dnToUsername.get(orgUser.manager);
+    if (parentUsername && parentUsername !== orgUser.username) {
+      nodeMap.get(parentUsername)!.children.push(nodeMap.get(orgUser.username)!);
+      childSet.add(orgUser.username);
+    }
+  }
+
+  // Root nodes = members that are not anyone's child
+  const roots: ReportTreeNode[] = [];
+  for (const username of accessUsernames) {
+    if (!childSet.has(username)) {
+      roots.push(nodeMap.get(username)!);
+    }
+  }
+
+  return roots;
+}
+
+// ─── TreePersonRow ─────────────────────────────────────────────────────────────
+
+const TreePersonRow: React.FC<{
+  node: ReportTreeNode;
+  depth: number;
+  orgUsers: OrgUserFull[];
+  userReports: Record<string, WeeklyReportDto | null>;
+  getUserInfo: (username: string) => AppUser;
+  onViewReport: (username: string) => void;
+  projectOwner: string;
+  accessToken: string;
+}> = ({ node, depth, orgUsers, userReports, getUserInfo, onViewReport, projectOwner, accessToken }) => {
+  const info = getUserInfo(node.username);
+  const report = userReports[node.username];
+  const hasReport = report !== null && report !== undefined;
+  const isOwner = node.username === projectOwner;
+  const orgUser = orgUsers.find(u => u.username === node.username);
+
+  return (
+    <div>
+      {/* Person row card */}
+      <div className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${
+        hasReport ? 'border-emerald-500/50 bg-emerald-900/10' : 'border-red-500/50 bg-red-950/10'
+      }`}>
+        {/* Status indicator */}
+        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${hasReport ? 'bg-emerald-400' : 'bg-red-500'}`} />
+
+        {/* Avatar */}
+        <UserAvatar
+          username={node.username}
+          displayName={info.fullName || node.username}
+          accessToken={accessToken}
+          size="sm"
+        />
+
+        {/* Name, username, title */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-white font-black text-xs italic truncate">{info.fullName || node.username}</p>
+            {isOwner && (
+              <span className="text-[7px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-full uppercase tracking-widest flex-shrink-0">
+                Sahip
+              </span>
+            )}
+          </div>
+          <p className="text-slate-500 text-[9px]">{node.username}</p>
+          {orgUser?.title && <p className="text-slate-600 text-[8px]">{orgUser.title}</p>}
+        </div>
+
+        {/* Report status pill */}
+        <div className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border flex-shrink-0 ${
+          hasReport
+            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+            : 'text-red-400 bg-red-500/10 border-red-500/20'
+        }`}>
+          {hasReport ? 'Rapor Yazıldı' : 'Rapor Yok'}
+        </div>
+
+        {/* View button */}
+        <button
+          onClick={() => onViewReport(node.username)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 text-blue-400 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95 flex-shrink-0"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          Raporu Gör
+        </button>
+      </div>
+
+      {/* Children rendered below with indentation */}
+      {node.children.length > 0 && (
+        <div className="ml-10 mt-2 border-l-2 border-slate-700/60 pl-4 space-y-2">
+          {node.children.map(child => (
+            <TreePersonRow
+              key={child.username}
+              node={child}
+              depth={depth + 1}
+              orgUsers={orgUsers}
+              userReports={userReports}
+              getUserInfo={getUserInfo}
+              onViewReport={onViewReport}
+              projectOwner={projectOwner}
+              accessToken={accessToken}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const ProjectReportsTab: React.FC<{
@@ -125,6 +273,8 @@ export const ProjectReportsTab: React.FC<{
   const [popupUsername, setPopupUsername] = useState<string | null>(null);
   const [userReports, setUserReports] = useState<Record<string, WeeklyReportDto | null>>({});
   const [fetching, setFetching] = useState(false);
+
+  const [orgUsers, setOrgUsers] = useState<OrgUserFull[]>([]);
 
   // Last 12 weeks (newest first)
   const availableWeeks = useMemo(() => {
@@ -191,6 +341,32 @@ export const ProjectReportsTab: React.FC<{
     return () => document.removeEventListener('mousedown', handle);
   }, []);
 
+  // Fetch all org users once to build the hierarchy tree
+  useEffect(() => {
+    let cancelled = false;
+    const fetchOrgUsers = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/users/all-org`, {
+          headers: { Authorization: `Bearer ${user.accessToken}` },
+        });
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setOrgUsers(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        // non-critical: tree will show flat list of roots
+      }
+    };
+    fetchOrgUsers();
+    return () => { cancelled = true; };
+  }, [apiUrl, user.accessToken]);
+
+  // Build the report hierarchy tree from project members + org relationships
+  const reportTree = useMemo(
+    () => buildReportTree(accessUsers, orgUsers),
+    [accessUsers, orgUsers]
+  );
+
   const popupReport = popupUsername !== null ? userReports[popupUsername] : undefined;
   const popupUser = popupUsername ? getUserInfo(popupUsername) : null;
 
@@ -250,73 +426,21 @@ export const ProjectReportsTab: React.FC<{
           </p>
         </div>
       ) : (
-        /* User cards grid */
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          {accessUsers.map(username => {
-            const info = getUserInfo(username);
-            const report = userReports[username];
-            // A user "has a report" when their entry is a non-null object
-            const hasReport = report !== null && report !== undefined;
-            const isOwner = username === projectOwner;
-
-            return (
-              <div
-                key={username}
-                className={`relative flex flex-col items-center gap-3 p-5 rounded-2xl border-2 transition-all ${
-                  hasReport
-                    ? 'border-emerald-500/50 bg-emerald-900/10'
-                    : 'border-red-500/50 bg-red-950/10'
-                }`}
-              >
-                {/* Status dot */}
-                <div className={`absolute top-3 right-3 w-2.5 h-2.5 rounded-full ${hasReport ? 'bg-emerald-400' : 'bg-red-500'}`} />
-
-                {/* Owner badge */}
-                {isOwner && (
-                  <div className="absolute top-3 left-3 text-[7px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-full uppercase tracking-widest">
-                    Sahip
-                  </div>
-                )}
-
-                {/* Avatar */}
-                <div className="mt-1">
-                  <UserAvatar
-                    username={username}
-                    displayName={info.fullName || username}
-                    accessToken={user.accessToken}
-                    size="lg"
-                  />
-                </div>
-
-                {/* Name */}
-                <div className="text-center">
-                  <p className="text-white font-black text-xs italic leading-snug">{info.fullName || username}</p>
-                  <p className="text-slate-500 text-[9px] mt-0.5">{username}</p>
-                </div>
-
-                {/* Report status pill */}
-                <div className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${
-                  hasReport
-                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                    : 'text-red-400 bg-red-500/10 border-red-500/20'
-                }`}>
-                  {hasReport ? 'Rapor Yazıldı' : 'Rapor Yok'}
-                </div>
-
-                {/* Eye / view button */}
-                <button
-                  onClick={() => setPopupUsername(username)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 border border-blue-500/30 text-blue-400 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all active:scale-95"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  Raporu Gör
-                </button>
-              </div>
-            );
-          })}
+        /* Personnel report tree */
+        <div className="space-y-3">
+          {reportTree.map(node => (
+            <TreePersonRow
+              key={node.username}
+              node={node}
+              depth={0}
+              orgUsers={orgUsers}
+              userReports={userReports}
+              getUserInfo={getUserInfo}
+              onViewReport={setPopupUsername}
+              projectOwner={projectOwner}
+              accessToken={user.accessToken}
+            />
+          ))}
         </div>
       )}
 
