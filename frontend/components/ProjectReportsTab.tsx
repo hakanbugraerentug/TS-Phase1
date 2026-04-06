@@ -178,7 +178,7 @@ export const ProjectReportsTab: React.FC<{
     };
     fetchReports();
     return () => { cancelled = true; };
-  }, [selectedWeek, accessUsers.join(','), apiUrl, user.accessToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedWeek, accessUsers, apiUrl, user.accessToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close week dropdown on outside click
   useEffect(() => {
