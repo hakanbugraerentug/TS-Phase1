@@ -19,7 +19,6 @@ interface Team {
   description: string;
   leader: string;
   members: string[];
-  projectId?: string;
 }
 
 interface WeeklyComment {
