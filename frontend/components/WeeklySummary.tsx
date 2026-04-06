@@ -145,7 +145,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
       for (const report of reviewerReports) {
         if (!report.reportData?.bullet_lines) continue;
         let currentProject = report.author || report.username;
-        for (const line of report.reportData.bullet_lines) {
+        report.reportData.bullet_lines.forEach((line, lineIdx) => {
           if (line.bullet0) {
             currentProject = line.bullet0.replace(/^\[|\]$/g, '');
           }
@@ -154,17 +154,17 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
             ...(line.bullet2 ?? []),
             ...(line.bullet3 ?? []),
           ];
-          for (const text of allBullets) {
-            if (!text.trim()) continue;
+          allBullets.forEach((text, bulletIdx) => {
+            if (!text.trim()) return;
             reviewerAiComments.push({
-              commentId: `reviewer-${report.id}-${reviewerAiComments.length}`,
+              commentId: `reviewer-${report.id}-${lineIdx}-${bulletIdx}`,
               date: report.weekStart,
               username: report.author || report.username,
               projectName: currentProject,
               userComment: text,
             });
-          }
-        }
+          });
+        });
       }
 
       // 2. Collect comments written by the current user
