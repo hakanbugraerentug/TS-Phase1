@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../App';
 import { UserAvatar } from './UserAvatar';
+import { ProjectReportsTab } from './ProjectReportsTab';
 
 interface Comment {
   id: string;
@@ -31,7 +32,7 @@ interface AppUser {
 
 const UNIT_TYPES = ['Yazılım', 'Donanım', 'Mekanik', 'Sistem'];
 
-type DetailTab = 'comments' | 'details' | 'settings';
+type DetailTab = 'comments' | 'details' | 'settings' | 'reports';
 // Returns the Monday (00:00:00) of the week containing the given date
 const getWeekStart = (d: Date): Date => {
   const day = d.getDay();
@@ -448,7 +449,31 @@ export const ProjectDetail: React.FC<{
           </svg>
           Ayarlar
         </button>
+        <button
+          onClick={() => setActiveTab('reports')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+            activeTab === 'reports'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+              : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Raporlar
+        </button>
       </div>
+
+      {/* REPORTS TAB */}
+      {activeTab === 'reports' && (
+        <ProjectReportsTab
+          projectOwner={projectOwner}
+          projectMembers={projectMembers}
+          allUsers={allUsers}
+          user={user}
+          apiUrl={apiUrl}
+        />
+      )}
 
       {/* COMMENTS TAB */}
       {activeTab === 'comments' && (
