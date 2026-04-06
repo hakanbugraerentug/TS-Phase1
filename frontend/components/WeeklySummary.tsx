@@ -198,15 +198,23 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     if (!reportData) return;
     setIsSaving(true);
     try {
-      // Fetch manager (reviewer) from org-chart
+      // Fetch manager chain (reviewer) from org-chart
       let reviewerUsername = '';
+      const reviewers: string[] = [];
       try {
         const orgRes = await fetch(`${apiUrl}/api/users/${user.username}/org-chart`, {
           headers: { Authorization: `Bearer ${user.accessToken}` },
         });
         if (orgRes.ok) {
           const orgData = await orgRes.json();
+          // Direct manager (team leader)
           reviewerUsername = orgData?.manager?.username ?? '';
+          if (reviewerUsername) reviewers.push(reviewerUsername);
+          // Manager above the team leader (müdür)
+          const seniorManagerUsername = orgData?.manager?.manager?.username ?? '';
+          if (seniorManagerUsername && !reviewers.includes(seniorManagerUsername)) {
+            reviewers.push(seniorManagerUsername);
+          }
         }
       } catch {
         // proceed without reviewer if fetch fails
@@ -223,6 +231,7 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
           reportData: reportData,
           author: user.username,
           reviewer: reviewerUsername,
+          reviewers: reviewers,
           readyToReview: false,
           status: reportStatus ?? 'generated',
         }),

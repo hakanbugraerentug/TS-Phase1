@@ -47,6 +47,7 @@ public class WeeklyReportsController : ControllerBase
             SavedAt = report.SavedAt,
             Author = report.Author,
             Reviewer = report.Reviewer,
+            Reviewers = report.Reviewers,
             ReadyToReview = report.ReadyToReview,
             Status = report.Status
         });
@@ -81,6 +82,7 @@ public class WeeklyReportsController : ControllerBase
             SavedAt = report.SavedAt,
             Author = report.Author,
             Reviewer = report.Reviewer,
+            Reviewers = report.Reviewers,
             ReadyToReview = report.ReadyToReview,
             Status = report.Status
         });
@@ -116,6 +118,7 @@ public class WeeklyReportsController : ControllerBase
             Author = username,
             Date = DateTime.UtcNow,
             Reviewer = request.Reviewer,
+            Reviewers = request.Reviewers,
             ReadyToReview = request.ReadyToReview,
             Status = request.Status
         };
@@ -130,6 +133,7 @@ public class WeeklyReportsController : ControllerBase
             SavedAt = saved.SavedAt,
             Author = saved.Author,
             Reviewer = saved.Reviewer,
+            Reviewers = saved.Reviewers,
             ReadyToReview = saved.ReadyToReview,
             Status = saved.Status
         });
@@ -156,6 +160,7 @@ public class WeeklyReportsController : ControllerBase
                 SavedAt = updated.SavedAt,
                 Author = updated.Author,
                 Reviewer = updated.Reviewer,
+                Reviewers = updated.Reviewers,
                 ReadyToReview = updated.ReadyToReview,
                 Status = updated.Status
             });
@@ -190,6 +195,7 @@ public class WeeklyReportsController : ControllerBase
                 SavedAt = r.SavedAt,
                 Author = r.Author,
                 Reviewer = r.Reviewer,
+                Reviewers = r.Reviewers,
                 ReadyToReview = r.ReadyToReview,
                 Status = r.Status
             };
@@ -224,6 +230,7 @@ public class WeeklyReportsController : ControllerBase
             SavedAt = r.SavedAt,
             Author = r.Author,
             Reviewer = r.Reviewer,
+            Reviewers = r.Reviewers,
             ReadyToReview = r.ReadyToReview,
             Status = r.Status
         });
@@ -256,6 +263,7 @@ public class WeeklyReportsController : ControllerBase
             SavedAt = r.SavedAt,
             Author = r.Author,
             Reviewer = r.Reviewer,
+            Reviewers = r.Reviewers,
             ReadyToReview = r.ReadyToReview,
             Status = r.Status
         });

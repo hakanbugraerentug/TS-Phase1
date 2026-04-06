@@ -198,13 +198,21 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
     setSaveError(null);
     try {
       let reviewerUsername = '';
+      const reviewers: string[] = [];
       try {
         const orgRes = await fetch(`${apiUrl}/api/users/${user.username}/org-chart`, {
           headers: { Authorization: `Bearer ${user.accessToken}` },
         });
         if (orgRes.ok) {
           const orgData = await orgRes.json();
+          // Direct manager (team leader)
           reviewerUsername = orgData?.manager?.username ?? '';
+          if (reviewerUsername) reviewers.push(reviewerUsername);
+          // Manager above the team leader (müdür)
+          const seniorManagerUsername = orgData?.manager?.manager?.username ?? '';
+          if (seniorManagerUsername && !reviewers.includes(seniorManagerUsername)) {
+            reviewers.push(seniorManagerUsername);
+          }
         }
       } catch {
         // proceed without reviewer
@@ -221,6 +229,7 @@ export const MergeIncomingReports: React.FC<{ user: User }> = ({ user }) => {
           reportData: reportData,
           author: user.username,
           reviewer: reviewerUsername,
+          reviewers: reviewers,
           readyToReview: false,
           status: reportStatus ?? 'generated',
         }),
