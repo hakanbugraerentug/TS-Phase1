@@ -23,22 +23,29 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     # Set to None to let pyannote auto-detect the number of speakers
     meeting_num_speakers: Optional[int] = None
-    # Optional: path to the directory that contains the speaker-diarization-3.1
-    # and segmentation-3.0 sub-directories (e.g. server/models).
-    # When set, the diarization pipeline and segmentation model are loaded fully
-    # offline from that directory.
-    # When empty, the models are downloaded from HuggingFace using HF_TOKEN.
-    pyannote_local_model_dir: str = ""
-
-    # Optional: path to the directory that contains the whisper-medium
-    # sub-directory (e.g. server/models).
-    # When set, the Whisper model is loaded fully offline from that directory.
-    # When empty, the model is downloaded from the faster-whisper model hub.
+    # Meeting models
     whisper_local_model_dir: str = ""
+    pyannote_diarization_config: str = ""
+    temp_dir: str = "/tmp/meetings"
+    max_file_size_mb: int = 200
+    meeting_worker_count: int = 1
 
-    # MongoDB (for caching meeting results)
+    # MongoDB
     mongodb_url: str = "mongodb://localhost:27017"
     mongodb_db: str = "TeamSyncDb"
+
+    # ── TFS / Azure DevOps Server ────────────────────────
+    # Örnek: https://tfs02.sirket.com.tr/tfs
+    tfs_base_url: str = "https://tfs02.yapikredi.com.tr/tfs"
+    # TFS Collection adı
+    tfs_collection: str = "HBTUYTMCollection"
+    # TFS Proje adı
+    tfs_project: str = "TeamSync"
+    # Personal Access Token
+    tfs_pat: str = ""
+    # HTTP istek zaman aşımı (saniye)
+    tfs_timeout_seconds: int = 30
+
 
     model_config = {
         "env_file": ".env",

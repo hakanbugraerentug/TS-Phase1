@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { User } from '../App';
 import { UserAvatar } from './UserAvatar';
 
@@ -16,6 +15,16 @@ interface AppUser {
   fullName: string;
 }
 
+// Debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
 export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) => void }> = ({ user, onViewProfile }) => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,7 +36,10 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
   const [newDescription, setNewDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
+  // Kullanıcı arama state'leri (eski allUsers kaldırıldı)
+  const [searchedUsers, setSearchedUsers] = useState<AppUser[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+
   const [leaderUsername, setLeaderUsername] = useState('');
   const [leaderInput, setLeaderInput] = useState('');
   const [leaderDropdownOpen, setLeaderDropdownOpen] = useState(false);
@@ -43,7 +55,61 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
   const leaderRef = useRef<HTMLDivElement>(null);
   const memberRef = useRef<HTMLDivElement>(null);
 
+  // Üye isim cache'i (team üyelerinin isimlerini tutmak için)
+  const [userNameCache, setUserNameCache] = useState<Record<string, string>>({});
+
   const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+  // Debounce: Hangi input aktifse onu kullan
+  const activeUserSearch = leaderInput || memberInput || addMemberInput;
+  const debouncedUserSearch = useDebounce(activeUserSearch, 300);
+
+  // API'den kullanıcı ara (debounced)
+  useEffect(() => {
+    if (debouncedUserSearch.length < 2) {
+      setSearchedUsers([]);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const searchUsers = async () => {
+      setIsSearchingUsers(true);
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/users?search=${encodeURIComponent(debouncedUserSearch)}&limit=15`,
+          {
+            headers: {
+              'accept': 'application/json',
+              'Authorization': `Bearer ${user.accessToken}`
+            },
+            signal: controller.signal
+          }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const users = (data || []).map((u: any) => ({
+            username: u.username ?? u.Username ?? '',
+            fullName: u.fullName ?? u.FullName ?? ''
+          }));
+          setSearchedUsers(users);
+          // Cache'e ekle
+          const newCache: Record<string, string> = {};
+          users.forEach((u: AppUser) => { newCache[u.username] = u.fullName; });
+          setUserNameCache(prev => ({ ...prev, ...newCache }));
+        }
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('Kullanıcı araması başarısız:', err);
+        }
+      } finally {
+        setIsSearchingUsers(false);
+      }
+    };
+
+    searchUsers();
+    return () => controller.abort();
+  }, [debouncedUserSearch, apiUrl, user.accessToken]);
 
   const fetchTeams = async () => {
     try {
@@ -57,6 +123,42 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
       if (response.ok) {
         const data = await response.json();
         setTeams(data || []);
+
+        // Team üyelerinin isimlerini cache'le
+        const memberUsernames = new Set<string>();
+        (data || []).forEach((t: Team) => {
+          if (t.leader) memberUsernames.add(t.leader);
+          t.members?.forEach(m => memberUsernames.add(m));
+        });
+
+        // Toplu isim çekmek için küçük gruplar halinde ara
+        const unknowns = Array.from(memberUsernames).filter(u => !userNameCache[u]);
+        if (unknowns.length > 0 && unknowns.length <= 50) {
+          // Az sayıda bilinmeyen varsa tek tek cache'e eklemek için ara
+          for (const username of unknowns.slice(0, 20)) {
+            try {
+              const res = await fetch(
+                `${apiUrl}/api/users?search=${encodeURIComponent(username)}&limit=1`,
+                {
+                  headers: {
+                    'accept': 'application/json',
+                    'Authorization': `Bearer ${user.accessToken}`
+                  }
+                }
+              );
+              if (res.ok) {
+                const d = await res.json();
+                if (d && d.length > 0) {
+                  const u = d[0];
+                  setUserNameCache(prev => ({
+                    ...prev,
+                    [u.username ?? u.Username ?? '']: u.fullName ?? u.FullName ?? ''
+                  }));
+                }
+              }
+            } catch { /* ignore */ }
+          }
+        }
       } else {
         setTeams([]);
       }
@@ -68,29 +170,7 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
     }
   };
 
-  const fetchAllUsers = async () => {
-    try {
-      const response = await fetch(`${apiUrl}/api/users`, {
-        headers: {
-          'accept': 'application/json',
-          'Authorization': `Bearer ${user.accessToken}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAllUsers(
-          (data || []).map((u: any) => ({
-            username: u.username ?? u.Username ?? '',
-            fullName: u.fullName ?? u.FullName ?? ''
-          }))
-        );
-      }
-    } catch (err) {
-      console.error('Kullanıcılar yüklenemedi:', err);
-    }
-  };
-
-  useEffect(() => { fetchTeams(); fetchAllUsers(); }, [user.accessToken]);
+  useEffect(() => { fetchTeams(); }, [user.accessToken]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -103,28 +183,26 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
   }, []);
 
   const getUserFullName = (username: string) => {
-    const found = allUsers.find(u => u.username === username);
-    return found?.fullName || username;
+    return userNameCache[username] || username;
   };
 
-  const filteredLeaderUsers = allUsers.filter(u =>
-    u.username.toLowerCase().includes(leaderInput.toLowerCase()) ||
-    u.fullName.toLowerCase().includes(leaderInput.toLowerCase())
-  );
+  // Dropdown listeleri: artık searchedUsers'dan geliyor
+  const filteredLeaderUsers = useMemo(() => {
+    if (leaderInput.length < 2) return [];
+    return searchedUsers;
+  }, [searchedUsers, leaderInput]);
 
-  const filteredMemberUsers = allUsers.filter(u =>
-    (u.username.toLowerCase().includes(memberInput.toLowerCase()) ||
-     u.fullName.toLowerCase().includes(memberInput.toLowerCase())) &&
-    !selectedMembers.includes(u.username)
-  );
+  const filteredMemberUsers = useMemo(() => {
+    if (memberInput.length < 2) return [];
+    return searchedUsers.filter(u => !selectedMembers.includes(u.username));
+  }, [searchedUsers, memberInput, selectedMembers]);
 
-  const filteredAddMemberUsers = selectedTeam
-    ? allUsers.filter(u =>
-        (u.username.toLowerCase().includes(addMemberInput.toLowerCase()) ||
-         u.fullName.toLowerCase().includes(addMemberInput.toLowerCase())) &&
-        !selectedTeam.members?.includes(u.username)
-      )
-    : [];
+  const filteredAddMemberUsers = useMemo(() => {
+    if (addMemberInput.length < 2) return [];
+    return selectedTeam
+      ? searchedUsers.filter(u => !selectedTeam.members?.includes(u.username))
+      : [];
+  }, [searchedUsers, addMemberInput, selectedTeam]);
 
   const handleOpenModal = () => {
     setIsModalOpen(true);
@@ -137,6 +215,7 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
     setSelectedMembers([]);
     setLeaderDropdownOpen(false);
     setMemberDropdownOpen(false);
+    setSearchedUsers([]);
   };
 
   const buildMembersList = (leader: string, selected: string[], currentUser: string): string[] => {
@@ -417,10 +496,15 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
                           setLeaderUsername('');
                           setLeaderDropdownOpen(true);
                         }}
-                        onFocus={() => setLeaderDropdownOpen(true)}
-                        placeholder="Lider ara..."
+                        onFocus={() => { if (leaderInput.length >= 2) setLeaderDropdownOpen(true); }}
+                        placeholder="En az 2 karakter yazın..."
                         className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-5 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all"
                       />
+                      {isSearchingUsers && leaderInput.length >= 2 && (
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                          <div className="w-4 h-4 border-2 border-t-blue-500 border-white/10 rounded-full animate-spin"></div>
+                        </div>
+                      )}
                       {leaderDropdownOpen && filteredLeaderUsers.length > 0 && (
                         <ul className="absolute z-10 left-0 right-0 mt-2 bg-[#1e293b] border border-white/10 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
                           {filteredLeaderUsers.map(u => (
@@ -451,29 +535,31 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
                     <div className="relative">
                       <div className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-4 py-3 focus-within:border-blue-500/50 focus-within:bg-slate-900 transition-all">
                         <div className="flex flex-wrap gap-2 mb-2">
-                          {selectedMembers.map(m => {
-                            const memberUser = allUsers.find(u => u.username === m);
-                            return (
-                              <span key={m} className="flex items-center gap-1.5 bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs font-bold px-2 py-1 rounded-full">
-                                <UserAvatar username={m} displayName={memberUser?.fullName || m} accessToken={user.accessToken} size="sm" />
-                                <span>{memberUser?.fullName || m}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedMembers(prev => prev.filter(x => x !== m))}
-                                  className="ml-1 text-blue-400 hover:text-white transition-colors"
-                                >×</button>
-                              </span>
-                            );
-                          })}
+                          {selectedMembers.map(m => (
+                            <span key={m} className="flex items-center gap-1.5 bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs font-bold px-2 py-1 rounded-full">
+                              <UserAvatar username={m} displayName={getUserFullName(m)} accessToken={user.accessToken} size="sm" />
+                              <span>{getUserFullName(m)}</span>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedMembers(prev => prev.filter(x => x !== m))}
+                                className="ml-1 text-blue-400 hover:text-white transition-colors"
+                              >×</button>
+                            </span>
+                          ))}
                         </div>
                         <input
                           value={memberInput}
                           onChange={(e) => { setMemberInput(e.target.value); setMemberDropdownOpen(true); }}
-                          onFocus={() => setMemberDropdownOpen(true)}
-                          placeholder="Üye ara..."
+                          onFocus={() => { if (memberInput.length >= 2) setMemberDropdownOpen(true); }}
+                          placeholder="En az 2 karakter yazın..."
                           className="w-full bg-transparent text-white font-bold outline-none placeholder:text-slate-600"
                         />
                       </div>
+                      {isSearchingUsers && memberInput.length >= 2 && (
+                        <div className="absolute right-4 top-4">
+                          <div className="w-4 h-4 border-2 border-t-blue-500 border-white/10 rounded-full animate-spin"></div>
+                        </div>
+                      )}
                       {memberDropdownOpen && filteredMemberUsers.length > 0 && (
                         <ul className="absolute z-10 left-0 right-0 mt-2 bg-[#1e293b] border border-white/10 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
                           {filteredMemberUsers.map(u => (
@@ -483,6 +569,8 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
                                 setSelectedMembers(prev => [...prev, u.username]);
                                 setMemberInput('');
                                 setMemberDropdownOpen(false);
+                                // Cache'e ekle
+                                setUserNameCache(prev => ({ ...prev, [u.username]: u.fullName }));
                               }}
                               className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-blue-600/20 transition-colors"
                             >
@@ -643,10 +731,15 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
                   <input
                     value={addMemberInput}
                     onChange={(e) => { setAddMemberInput(e.target.value); setAddMemberDropdownOpen(true); }}
-                    onFocus={() => setAddMemberDropdownOpen(true)}
-                    placeholder="Üye ara ve ekle..."
+                    onFocus={() => { if (addMemberInput.length >= 2) setAddMemberDropdownOpen(true); }}
+                    placeholder="En az 2 karakter yazın..."
                     className="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-4 text-white font-bold outline-none focus:border-blue-500/50 focus:bg-slate-900 transition-all"
                   />
+                  {isSearchingUsers && addMemberInput.length >= 2 && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                      <div className="w-4 h-4 border-2 border-t-blue-500 border-white/10 rounded-full animate-spin"></div>
+                    </div>
+                  )}
                   {addMemberDropdownOpen && filteredAddMemberUsers.length > 0 && (
                     <ul className="absolute z-10 left-0 right-0 mt-2 bg-[#1e293b] border border-white/10 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
                       {filteredAddMemberUsers.map(u => (
