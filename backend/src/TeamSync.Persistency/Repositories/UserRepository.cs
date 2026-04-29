@@ -46,6 +46,23 @@ public class UserRepository : IUserRepository
         return await _context.Users.Find(_ => true).ToListAsync();
     }
 
+    public async Task<List<User>> SearchAsync(string searchTerm, int limit)
+    {
+        var escaped = System.Text.RegularExpressions.Regex.Escape(searchTerm);
+
+        var filter = Builders<User>.Filter.Or(
+            Builders<User>.Filter.Regex(u => u.Username,
+                new MongoDB.Bson.BsonRegularExpression(escaped, "i")),
+            Builders<User>.Filter.Regex(u => u.FullName,
+                new MongoDB.Bson.BsonRegularExpression(escaped, "i"))
+        );
+
+        return await _context.Users
+            .Find(filter)
+            .Limit(limit)
+            .ToListAsync();
+    }
+
     public async Task<List<string>> GetSubordinatesAsync(string username)
     {
         var user = await GetByUsernameAsync(username);

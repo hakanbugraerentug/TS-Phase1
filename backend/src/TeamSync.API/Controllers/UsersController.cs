@@ -17,11 +17,24 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// Tüm kullanıcıları döndürür.
+    /// Kullanıcıları döndürür. search parametresi varsa filtreler (min 2 karakter).
+    /// search yoksa tüm kullanıcıları döndürür (eski davranış).
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? search = null,
+        [FromQuery] int limit = 20)
     {
+        if (!string.IsNullOrWhiteSpace(search) && search.Length >= 2)
+        {
+            var filtered = await _userRepository.SearchAsync(search, Math.Min(limit, 50));
+            return Ok(filtered.Select(u => new
+            {
+                username = u.Username,
+                fullName = u.FullName
+            }));
+        }
+
         var users = await _userRepository.GetAllAsync();
         return Ok(users);
     }
@@ -64,7 +77,8 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> GetAllForOrgChart()
     {
         var users = await _userRepository.GetAllAsync();
-        var result = users.Select(u => new {
+        var result = users.Select(u => new
+        {
             username = u.Username,
             fullName = u.FullName,
             title = u.Title,

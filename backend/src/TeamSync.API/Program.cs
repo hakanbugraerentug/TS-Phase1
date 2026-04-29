@@ -26,6 +26,12 @@ using TeamSync.Application.CQRS.Team.Queries.GetAllTeams;
 using TeamSync.Application.CQRS.Team.Queries.GetTeamById;
 using TeamSync.Application.CQRS.Team.Queries.GetTeamsByProject;
 using TeamSync.Application.CQRS.Team.Queries.GetMyTeams;
+using TeamSync.Application.CQRS.ProjectGroup.Queries.GetAllProjectGroups;
+using TeamSync.Application.CQRS.ProjectGroup.Commands.CreateProjectGroup;
+using TeamSync.Application.CQRS.ProjectGroup.Commands.UpdateProjectGroup;
+using TeamSync.Application.CQRS.ProjectGroup.Commands.DeleteProjectGroup;
+using TeamSync.Application.CQRS.ProjectGroup.Commands.AddProjectToGroup;
+using TeamSync.Application.CQRS.ProjectGroup.Commands.RemoveProjectFromGroup;
 using TeamSync.Domain.Interfaces;
 using TeamSync.Persistency.Context;
 using TeamSync.Persistency.Repositories;
@@ -125,6 +131,16 @@ builder.Services.AddScoped<GetAllTeamsQueryHandler>();
 builder.Services.AddScoped<GetTeamByIdQueryHandler>();
 builder.Services.AddScoped<GetTeamsByProjectQueryHandler>();
 builder.Services.AddScoped<GetMyTeamsQueryHandler>();
+
+builder.Services.AddScoped<IProjectGroupRepository, ProjectGroupRepository>();
+ 
+builder.Services.AddScoped<GetAllProjectGroupsQueryHandler>();
+builder.Services.AddScoped<CreateProjectGroupCommandHandler>();
+builder.Services.AddScoped<UpdateProjectGroupCommandHandler>();
+builder.Services.AddScoped<DeleteProjectGroupCommandHandler>();
+builder.Services.AddScoped<AddProjectToGroupCommandHandler>();
+builder.Services.AddScoped<RemoveProjectFromGroupCommandHandler>();
+ 
 
 // Add JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();

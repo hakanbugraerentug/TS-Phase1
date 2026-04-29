@@ -11,4 +11,5 @@ public interface IUserRepository
     Task<object?> GetOrgChartAsync(string username);
     Task<List<User>> GetAllAsync();
     Task<List<string>> GetSubordinatesAsync(string username);
+    Task<List<User>> SearchAsync(string searchTerm, int limit);
 }
