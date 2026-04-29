@@ -26,16 +26,36 @@ public class WeeklyReportRepository : IWeeklyReportRepository
     public async Task<WeeklyReport> UpsertAsync(WeeklyReport report)
     {
         report.SavedAt = DateTime.UtcNow;
+
         var filter = Builders<WeeklyReport>.Filter.And(
             Builders<WeeklyReport>.Filter.Eq(r => r.Username, report.Username),
             Builders<WeeklyReport>.Filter.Eq(r => r.WeekStart, report.WeekStart)
         );
-        var options = new FindOneAndReplaceOptions<WeeklyReport>
+
+        // FindOneAndReplace ile upsert yapıldığında MongoDB yeni bir _id üretiyor
+        // ve mevcut dökümanın immutable _id'siyle çakışıyor.
+        // Çözüm: Update builder ile sadece değişen alanları set et;
+        // _id'ye hiç dokunulmuyor.
+        var update = Builders<WeeklyReport>.Update
+            .Set(r => r.ReportData,    report.ReportData)
+            .Set(r => r.SavedAt,       report.SavedAt)
+            .Set(r => r.Author,        report.Author)
+            .Set(r => r.Date,          report.Date)
+            .Set(r => r.Reviewer,      report.Reviewer)
+            .Set(r => r.Reviewers,     report.Reviewers)
+            .Set(r => r.ReadyToReview, report.ReadyToReview)
+            .Set(r => r.Status,        report.Status)
+            // Sadece ilk insert'te Username ve WeekStart yazılır
+            .SetOnInsert(r => r.Username,  report.Username)
+            .SetOnInsert(r => r.WeekStart, report.WeekStart);
+
+        var options = new FindOneAndUpdateOptions<WeeklyReport>
         {
             IsUpsert = true,
             ReturnDocument = ReturnDocument.After
         };
-        return await _collection.FindOneAndReplaceAsync(filter, report, options)
+
+        return await _collection.FindOneAndUpdateAsync(filter, update, options)
                ?? report;
     }
 
