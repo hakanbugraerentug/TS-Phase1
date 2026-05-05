@@ -89,8 +89,8 @@ export const UserProfile: React.FC<UserProfileProps> = ({ username, user, onBack
           p => p.members?.includes(username) || p.owner === username
         );
         setProjects(userProjects);
-      } catch (e) {
-        console.error('Profil yüklenemedi:', e);
+      } catch {
+        // profil yüklenemedi
       } finally {
         setLoading(false);
       }

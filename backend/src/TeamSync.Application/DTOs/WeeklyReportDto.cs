@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -5,6 +6,7 @@ namespace TeamSync.Application.DTOs;
 
 public class SaveWeeklyReportRequest
 {
+    [Required]
     [JsonPropertyName("weekStart")]
     public string WeekStart { get; set; } = string.Empty;
 
@@ -62,6 +64,7 @@ public class WeeklyReportDto
 
 public class SubmitWeeklyReportRequest
 {
+    [Required]
     [JsonPropertyName("weekStart")]
     public string WeekStart { get; set; } = string.Empty;
 }

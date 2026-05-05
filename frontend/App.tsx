@@ -14,32 +14,51 @@ export interface User {
   title: string;
 }
 
+export interface LoginPayload {
+  access_token: string;
+  user: {
+    full_name: string;
+    username: string;
+    employee_id: string;
+    title?: string;
+  };
+}
+
+const STORAGE_KEY = 'teamsync_user';
+
+const loadStoredUser = (): User | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+};
+
 const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(loadStoredUser);
 
-  const handleLoginSuccess = (userData: any) => {
+  const handleLoginSuccess = (payload: LoginPayload) => {
     const formattedUser: User = {
-      name: userData.user.full_name,
-      role: 'Personel', // Tüm kullanıcılar personel modunda başlar
-      username: userData.user.username,
-      employeeId: userData.user.employee_id,
-      accessToken: userData.access_token,
-      title: userData.user.title ?? ''
+      name: payload.user.full_name,
+      role: 'Personel',
+      username: payload.user.username,
+      employeeId: payload.user.employee_id,
+      accessToken: payload.access_token,
+      title: payload.user.title ?? '',
     };
-
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(formattedUser));
     setUser(formattedUser);
-    setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
+    localStorage.removeItem(STORAGE_KEY);
     setUser(null);
   };
 
   return (
     <div className="min-h-screen">
-      {isAuthenticated && user ? (
+      {user ? (
         <Dashboard onLogout={handleLogout} user={user} />
       ) : (
         <Login onLoginSuccess={handleLoginSuccess} />

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace TeamSync.Application.DTOs;
 
 public class SorumluDto
@@ -34,8 +36,11 @@ public class ProjectDto
 
 public class CreateProjectRequest
 {
+    [Required]
+    [StringLength(200, MinimumLength = 1)]
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    [Required]
     public string Owner { get; set; } = string.Empty;
     public List<string> Members { get; set; } = new();
     public List<SorumluDto> Sorumlular { get; set; } = new();
@@ -51,8 +56,11 @@ public class CreateProjectRequest
 
 public class UpdateProjectRequest
 {
+    [Required]
+    [StringLength(200, MinimumLength = 1)]
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    [Required]
     public string Owner { get; set; } = string.Empty;
     public List<string> Members { get; set; } = new();
 }

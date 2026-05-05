@@ -2,6 +2,7 @@ using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using TeamSync.API.Middleware;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using TeamSync.Application.Interfaces;
@@ -39,6 +40,39 @@ using TeamSync.Persistency.Services;
 using TeamSync.Persistency.Settings;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Fail fast if required secrets are missing
+var startupErrors = new List<string>();
+var jwtSecret = builder.Configuration["JwtSettings:SecretKey"];
+if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
+    startupErrors.Add("JwtSettings:SecretKey must be set and at least 32 characters (env var: JwtSettings__SecretKey)");
+
+var aesKey = builder.Configuration["EncryptionSettings:AesKey"];
+if (string.IsNullOrWhiteSpace(aesKey))
+    startupErrors.Add("EncryptionSettings:AesKey must be set (env var: EncryptionSettings__AesKey)");
+else
+{
+    try
+    {
+        var keyBytes = Convert.FromBase64String(aesKey);
+        if (keyBytes.Length != 32)
+            startupErrors.Add("EncryptionSettings:AesKey must be a 32-byte Base64-encoded value");
+    }
+    catch
+    {
+        startupErrors.Add("EncryptionSettings:AesKey is not valid Base64");
+    }
+}
+
+if (startupErrors.Count > 0)
+{
+    Console.ForegroundColor = ConsoleColor.Red;
+    Console.Error.WriteLine("STARTUP FAILED — missing or invalid configuration:");
+    foreach (var err in startupErrors)
+        Console.Error.WriteLine($"  • {err}");
+    Console.ResetColor();
+    return;
+}
 
 // Configure settings
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
@@ -218,6 +252,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
 // CORS must be before authentication/authorization
 app.UseCors();

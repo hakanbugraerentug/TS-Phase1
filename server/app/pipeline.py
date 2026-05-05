@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Dict, List, Literal, Optional, TypedDict
 
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field, ValidationError
@@ -45,19 +46,54 @@ class GraphState(TypedDict, total=False):
 
 
 # ── Helpers ──────────────────────────────────────────────
-def _get_llm(temperature: float = 0.1) -> ChatOllama:
+def _get_llm(temperature: float = 0.1) -> ChatOpenAI:
+    """
+    Returns a ChatOpenAI instance pointed at the configured OpenAI-compatible
+    endpoint. Works with any vLLM / LM Studio / SGLang / Ollama /v1 server.
+
+    For thinking models (Qwen3, Kimi-K2, etc.) set in .env:
+        LLM_ENABLE_THINKING=true
+        LLM_THINKING_BUDGET=8192   # token budget
+
+    Thinking is passed via extra_body so it works even when the provider
+    doesn't surface it as a first-class ChatOpenAI parameter.
+    """
     settings = get_settings()
-    # ChatOllama kendi endpoint path'ini ekler (/api/chat),
-    # .env'de /v1 varsa temizle
-    base = settings.llm_base_url.rstrip("/")
-    if base.endswith("/v1"):
-        base = base[:-3]
-    return ChatOllama(
+
+    base_url = settings.llm_base_url.rstrip("/")
+    # Ensure the URL ends with /v1 as required by the OpenAI client
+    if not base_url.endswith("/v1"):
+        base_url = f"{base_url}/v1"
+
+    extra_body: Dict[str, Any] = {}
+    if settings.llm_enable_thinking:
+        # Qwen3 / Kimi-K2 style — adjust key names if your server differs
+        extra_body["enable_thinking"] = True
+        extra_body["thinking"] = {"budget_tokens": settings.llm_thinking_budget}
+
+    return ChatOpenAI(
         model=settings.llm_model,
-        base_url=base,
+        base_url=base_url,
+        api_key=settings.llm_api_key or "not-needed",
         temperature=temperature,
-        timeout=settings.llm_timeout_seconds,
+        timeout=settings.llm_thinking_budget if settings.llm_enable_thinking else settings.llm_timeout_seconds,
+        max_retries=2,
+        model_kwargs={"extra_body": extra_body} if extra_body else {},
     )
+
+
+def _extract_json_block(text: str) -> str:
+    """
+    Strips markdown fences and reasoning <think>…</think> blocks that some
+    thinking models emit before the actual JSON payload.
+    """
+    # Remove <think>…</think> blocks (Qwen3, Kimi-K2)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    # Strip ```json … ``` fences
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if fence:
+        return fence.group(1).strip()
+    return text.strip()
 
 
 def normalize_string_list(value: Any) -> Optional[List[str]]:
@@ -79,10 +115,6 @@ def infer_traceability(
     bullet_texts: Optional[List[str]],
     project_comments: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """
-    Her bullet için ilgili projedeki comment'lerle basit kelime-örtüşme
-    heuristiği uygulayarak traceability üretir.
-    """
     if not bullet_texts:
         return []
 
@@ -107,7 +139,6 @@ def infer_traceability(
             if bullet_words & comment_words:
                 matched.append(c["commentId"])
 
-        # Eşleşme yoksa ilk comment'i fallback olarak bağla
         if not matched and project_comments:
             matched = [project_comments[0]["commentId"]]
 
@@ -165,11 +196,13 @@ def summarize_projects(state: GraphState) -> GraphState:
 
 Your task:
 - You will receive weekly user comments for a single project.
-- Convert them into the following format:
-  - bullet0: project name in brackets, example [Atlas CRM]
-  - bullet1: category list, usually ["Genel"]
-  - bullet2: completed work, implemented changes, resolved issues
-  - bullet3: follow-up items, pending actions, meetings, next steps
+- Convert them into a JSON object with this exact structure:
+  {
+    "bullet0": "[Project Name]",
+    "bullet1": ["Genel"],
+    "bullet2": ["completed work item 1", "completed work item 2"],
+    "bullet3": ["follow-up item 1"] or null
+  }
 
 Rules:
 - Output language must be Turkish.
@@ -177,8 +210,9 @@ Rules:
 - Do not include usernames.
 - Do not include dates in the bullet text.
 - Avoid repetition.
-- If no meaningful category split exists, use ["Genel"].
-- If no follow-up exists, bullet3 can be null."""
+- bullet1 should be ["Genel"] unless a meaningful category split exists.
+- bullet3 can be null if there are no follow-up items.
+- Return ONLY the JSON object. No explanation, no markdown fences."""
 
     if custom_prompt:
         system_prompt = f"{base_system}\n\nEk talimatlar:\n{custom_prompt}"
@@ -186,7 +220,6 @@ Rules:
         system_prompt = base_system
 
     llm = _get_llm(temperature=0.1)
-    structured_llm = llm.with_structured_output(ProjectBulletOutput)
 
     summaries: List[Dict[str, Any]] = []
     traceability: List[Dict[str, Any]] = []
@@ -207,14 +240,28 @@ Rules:
             f"Comments:\n{json.dumps(llm_input, ensure_ascii=False, indent=2)}"
         )
 
-        result: ProjectBulletOutput = structured_llm.invoke([
+        response = llm.invoke([
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_prompt),
         ])
 
-        parsed = result.model_dump()
+        raw_text = response.content if isinstance(response.content, str) else str(response.content)
+        clean_json = _extract_json_block(raw_text)
 
-        # Override/normalize
+        try:
+            parsed_raw = json.loads(clean_json)
+            result = ProjectBulletOutput.model_validate(parsed_raw)
+            parsed = result.model_dump()
+        except (json.JSONDecodeError, ValidationError):
+            # Fallback: create a minimal valid entry so the pipeline doesn't crash
+            parsed = {
+                "bullet0": f"[{project_name}]",
+                "bullet1": ["Genel"],
+                "bullet2": [c.get("userComment", "") for c in project_comments[:3]],
+                "bullet3": None,
+            }
+
+        # Enforce correctness regardless of LLM output
         parsed["bullet0"] = f"[{project_name}]"
         parsed["bullet1"] = normalize_string_list(parsed.get("bullet1")) or ["Genel"]
         parsed["bullet2"] = normalize_string_list(parsed.get("bullet2"))
@@ -267,7 +314,10 @@ def repair_report(state: GraphState) -> GraphState:
     broken = state["report_dict"]
     error_text = state.get("validation_error", "")
 
-    system_prompt = "You fix invalid weekly report JSON objects.\nReturn JSON only.\nDo not add explanations."
+    system_prompt = (
+        "You fix invalid weekly report JSON objects.\n"
+        "Return a single valid JSON object only. No explanation, no markdown fences."
+    )
 
     user_prompt = (
         f"Fix the JSON below.\n\n"
@@ -287,14 +337,21 @@ def repair_report(state: GraphState) -> GraphState:
     )
 
     llm = _get_llm(temperature=0.0)
-    structured_llm = llm.with_structured_output(FullReportOutput)
-
-    result: FullReportOutput = structured_llm.invoke([
+    response = llm.invoke([
         SystemMessage(content=system_prompt),
         HumanMessage(content=user_prompt),
     ])
 
-    return {"report_dict": result.model_dump()}
+    raw_text = response.content if isinstance(response.content, str) else str(response.content)
+    clean_json = _extract_json_block(raw_text)
+
+    try:
+        repaired = json.loads(clean_json)
+    except json.JSONDecodeError:
+        # Return the broken dict unchanged; validate_report will catch it again
+        repaired = broken
+
+    return {"report_dict": repaired}
 
 
 def route_after_validation(state: GraphState) -> Literal["repair_report", "__end__"]:
@@ -302,10 +359,6 @@ def route_after_validation(state: GraphState) -> Literal["repair_report", "__end
         return "repair_report"
     return END
 
-
-# ══════════════════════════════════════════════════════════
-# MANAGER REPORT MERGE (Müdür ve üstü için)
-# ══════════════════════════════════════════════════════════
 
 # ══════════════════════════════════════════════════════════
 # BUILD GRAPH

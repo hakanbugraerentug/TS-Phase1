@@ -88,19 +88,18 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
         );
         if (response.ok) {
           const data = await response.json();
-          const users = (data || []).map((u: any) => ({
-            username: u.username ?? u.Username ?? '',
-            fullName: u.fullName ?? u.FullName ?? ''
+          const users: AppUser[] = (data as AppUser[] || []).map(u => ({
+            username: u.username,
+            fullName: u.fullName,
           }));
           setSearchedUsers(users);
-          // Cache'e ekle
           const newCache: Record<string, string> = {};
-          users.forEach((u: AppUser) => { newCache[u.username] = u.fullName; });
+          users.forEach(u => { newCache[u.username] = u.fullName; });
           setUserNameCache(prev => ({ ...prev, ...newCache }));
         }
       } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          console.error('Kullanıcı araması başarısız:', err);
+        if ((err as Error).name !== 'AbortError') {
+          setSearchedUsers([]);
         }
       } finally {
         setIsSearchingUsers(false);
@@ -147,13 +146,9 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
                 }
               );
               if (res.ok) {
-                const d = await res.json();
+                const d: AppUser[] = await res.json();
                 if (d && d.length > 0) {
-                  const u = d[0];
-                  setUserNameCache(prev => ({
-                    ...prev,
-                    [u.username ?? u.Username ?? '']: u.fullName ?? u.FullName ?? ''
-                  }));
+                  setUserNameCache(prev => ({ ...prev, [d[0].username]: d[0].fullName }));
                 }
               }
             } catch { /* ignore */ }
@@ -162,8 +157,7 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
       } else {
         setTeams([]);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
       setTeams([]);
     } finally {
       setIsLoading(false);
@@ -253,8 +247,8 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
         setSelectedMembers([]);
         setModalStep(1);
       }
-    } catch (err) {
-      console.error('Ekip oluşturulamadı:', err);
+    } catch {
+      alert('Ekip oluşturulamadı. Lütfen tekrar deneyin.');
     } finally {
       setIsCreating(false);
     }
@@ -271,8 +265,8 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
         setSelectedTeam(null);
         await fetchTeams();
       }
-    } catch (err) {
-      console.error('Ekip silinemedi:', err);
+    } catch {
+      alert('Ekip silinemedi.');
     }
   };
 
@@ -290,8 +284,8 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
         setSelectedTeam(updated);
         setTeams(prev => prev.map(t => t.id === team.id ? updated : t));
       }
-    } catch (err) {
-      console.error('Üye çıkarılamadı:', err);
+    } catch {
+      alert('Üye çıkarılamadı.');
     }
   };
 
@@ -312,8 +306,8 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
         setAddMemberInput('');
         setAddMemberDropdownOpen(false);
       }
-    } catch (err) {
-      console.error('Üye eklenemedi:', err);
+    } catch {
+      alert('Üye eklenemedi.');
     }
   };
 
@@ -333,8 +327,8 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
         setSelectedTeam(updated);
         setTeams(prev => prev.map(t => t.id === team.id ? updated : t));
       }
-    } catch (err) {
-      console.error('Liderlik devredilemedi:', err);
+    } catch {
+      alert('Liderlik devredilemedi.');
     }
   };
 
@@ -352,8 +346,8 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
         setSelectedTeam(null);
         await fetchTeams();
       }
-    } catch (err) {
-      console.error('Ekipten ayrılınamadı:', err);
+    } catch {
+      alert('Ekipten ayrılınamadı.');
     }
   };
 
@@ -617,9 +611,9 @@ export const Teams: React.FC<{ user: User; onViewProfile?: (username: string) =>
             <p className="text-slate-400 font-black text-[10px] uppercase tracking-widest">{searchQuery ? 'Arama sonucu bulunamadı.' : 'Henüz ekip bulunmuyor.'}</p>
           </div>
         ) : (
-          filteredTeams.map((team, idx) => (
+          filteredTeams.map((team) => (
             <div
-              key={team.id || idx}
+              key={team.id}
               onClick={() => setSelectedTeam(team)}
               className="bg-[#1e293b]/30 rounded-[2.5rem] p-8 border border-white/5 hover:border-blue-500/20 cursor-pointer transition-all"
             >

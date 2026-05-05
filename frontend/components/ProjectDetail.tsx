@@ -125,7 +125,8 @@ export const ProjectDetail: React.FC<{
       });
       if (response.ok) {
         const data = await response.json();
-        const mapped: Comment[] = (data || []).map((c: any) => {
+        interface RawComment { id: string; username: string; content: string; date?: string; }
+        const mapped: Comment[] = (data as RawComment[] || []).map(c => {
           const rawDate = c.date ? new Date(c.date) : new Date(0);
           return {
             id: c.id,
@@ -133,13 +134,13 @@ export const ProjectDetail: React.FC<{
             rawAuthor: c.username,
             text: c.content,
             date: c.date ? rawDate.toLocaleString('tr-TR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '',
-            rawDate
+            rawDate,
           };
         });
         setComments(mapped);
       }
-    } catch (err) {
-      console.error('Yorumlar yüklenemedi:', err);
+    } catch {
+      // yorumlar yüklenemedi, liste boş kalır
     }
   };
 
@@ -158,10 +159,10 @@ export const ProjectDetail: React.FC<{
       ]);
       if (projectRes.ok) {
         const proj = await projectRes.json();
-        setBirimler((proj.birimler || []).map((b: any) => ({
+        setBirimler((proj.birimler as Birim[] || []).map(b => ({
           birimTipi: b.birimTipi || 'Yazılım',
           birimAdi: b.birimAdi || '',
-          sorumluKullanici: b.sorumluKullanici || ''
+          sorumluKullanici: b.sorumluKullanici || '',
         })));
         setBirimDropdowns((proj.birimler || []).map(() => ({ open: false, query: '' })));
         setIlgiliEkipIdleri(proj.ilgiliEkipIdleri || []);
@@ -174,20 +175,20 @@ export const ProjectDetail: React.FC<{
       }
       if (teamsRes.ok) {
         const teamsData = await teamsRes.json();
-        setAllTeams((teamsData || []).map((t: any) => ({
-          id: t.id, title: t.title, leader: t.leader, members: t.members || []
+        setAllTeams((teamsData as TeamInfo[] || []).map(t => ({
+          id: t.id, title: t.title, leader: t.leader, members: t.members || [],
         })));
       }
       if (usersRes.ok) {
         const usersData = await usersRes.json();
-        setAllUsers((usersData || []).map((u: any) => ({
-          username: u.username ?? u.Username ?? '',
-          fullName: u.fullName ?? u.FullName ?? ''
+        setAllUsers((usersData as AppUser[] || []).map(u => ({
+          username: u.username,
+          fullName: u.fullName,
         })));
       }
       setDetailsLoaded(true);
-    } catch (err) {
-      console.error('Proje detayları yüklenemedi:', err);
+    } catch {
+      // proje detayları yüklenemedi
     }
   };
 
@@ -267,8 +268,8 @@ export const ProjectDetail: React.FC<{
         const errData = await response.json().catch(() => ({}));
         alert(errData.message || 'Detaylar kaydedilemedi.');
       }
-    } catch (err) {
-      console.error('Detaylar kaydedilemedi:', err);
+    } catch {
+      alert('Detaylar kaydedilemedi. Lütfen tekrar deneyin.');
     } finally {
       setIsSavingDetails(false);
     }
@@ -318,8 +319,8 @@ export const ProjectDetail: React.FC<{
         const errData = await (!putRes.ok ? putRes : patchRes).json().catch(() => ({}));
         alert(errData.message || 'Ayarlar kaydedilemedi.');
       }
-    } catch (err) {
-      console.error('Ayarlar kaydedilemedi:', err);
+    } catch {
+      alert('Ayarlar kaydedilemedi. Lütfen tekrar deneyin.');
     } finally {
       setIsSavingSettings(false);
     }
@@ -339,8 +340,7 @@ export const ProjectDetail: React.FC<{
       } else {
         alert('Proje silinemedi. Lütfen tekrar deneyin.');
       }
-    } catch (err) {
-      console.error('Proje silinemedi:', err);
+    } catch {
       alert('Proje silinemedi. Lütfen tekrar deneyin.');
     } finally {
       setIsDeletingProject(false);
@@ -368,8 +368,8 @@ export const ProjectDetail: React.FC<{
         setNewComment('');
         await fetchComments();
       }
-    } catch (err) {
-      console.error('Yorum eklenemedi:', err);
+    } catch {
+      alert('Yorum eklenemedi.');
     } finally {
       setIsSubmitting(false);
     }
@@ -382,8 +382,8 @@ export const ProjectDetail: React.FC<{
         headers: { 'Authorization': `Bearer ${user.accessToken}` }
       });
       await fetchComments();
-    } catch (err) {
-      console.error('Yorum silinemedi:', err);
+    } catch {
+      alert('Yorum silinemedi.');
     }
   };
 
