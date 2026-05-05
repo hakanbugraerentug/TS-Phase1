@@ -11,7 +11,7 @@ public class ProjectGroupRepository : IProjectGroupRepository
 
     public ProjectGroupRepository(MongoDbContext context)
     {
-        _collection = context.Database.GetCollection<ProjectGroup>(ProjectGroup.CollectionName);
+        _collection = context.ProjectGroups;
     }
 
     public async Task<List<ProjectGroup>> GetAllAsync()

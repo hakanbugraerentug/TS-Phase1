@@ -215,10 +215,10 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
       const response = await fetch(`${apiUrl}/api/projects`, { headers: authHeaders });
       if (response.ok) {
         const data = await response.json();
-        setProjects((data || []).map((p: any, idx: number) => ({
+        setProjects((data as Project[] || []).map((p, idx) => ({
           ...p,
-          cardImage: p.cardImage || p.card_image || null,
-          image: (p.cardImage || p.card_image) ? null : IMAGE_POOL[idx % IMAGE_POOL.length]
+          cardImage: p.cardImage || null,
+          image: p.cardImage ? null : IMAGE_POOL[idx % IMAGE_POOL.length],
         })));
       } else {
         setProjects([]);
@@ -252,8 +252,8 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
       const res = await fetch(`${apiUrl}/api/teams`, { headers: authHeaders });
       if (res.ok) {
         const data = await res.json();
-        setAvailableTeams((data || []).map((t: any) => ({
-          id: t.id, title: t.title, leader: t.leader, members: t.members || []
+        setAvailableTeams((data as TeamOption[] || []).map(t => ({
+          id: t.id, title: t.title, leader: t.leader, members: t.members || [],
         })));
       }
     } catch { setAvailableTeams([]); }
@@ -264,9 +264,9 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
       const res = await fetch(`${apiUrl}/api/users`, { headers: authHeaders });
       if (res.ok) {
         const data = await res.json();
-        setAllUsers((data || []).map((u: any) => ({
-          username: u.username ?? u.Username ?? '',
-          fullName: u.fullName ?? u.FullName ?? ''
+        setAllUsers((data as AppUser[] || []).map(u => ({
+          username: u.username,
+          fullName: u.fullName,
         })));
       }
     } catch { setAllUsers([]); }
@@ -542,7 +542,9 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
         const errData = await response.json().catch(() => ({}));
         alert(errData.message || 'Proje oluşturulamadı.');
       }
-    } catch { console.error('Proje oluşturulamadı'); }
+    } catch {
+      alert('Proje oluşturulamadı. Lütfen tekrar deneyin.');
+    }
     finally { setIsCreating(false); }
   };
 
@@ -983,9 +985,9 @@ export const Projects: React.FC<ProjectsProps> = ({ onSelectProject, user }) => 
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredProjects.map((project, idx) => (
+              {filteredProjects.map((project) => (
                 <div
-                  key={project.id || idx}
+                  key={project.id}
                   draggable={!activeGroup}
                   onDragStart={e => handleDragStart(e, project.id)}
                   onDragEnd={handleDragEnd}

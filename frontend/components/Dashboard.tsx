@@ -12,9 +12,8 @@ import { TfsPage } from './TfsPage';
 import { MyReports } from './MyReports';
 import { MeetingReport } from './MeetingReport';
 import { isElevatedTitle } from '../utils/titleHelpers';
+import { getApiUrl } from '../utils/api';
 import { UserProfile } from './UserProfile';
-
-const API_BASE = 'http://localhost:8000';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -44,11 +43,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
   const [tfsHasCredentials, setTfsHasCredentials] = useState(false);
   const [tfsConfiguredUrl, setTfsConfiguredUrl] = useState<string | null>(null);
 
+  const apiUrl = getApiUrl();
+
   // Check existing TFS credentials on mount
   useEffect(() => {
     const checkCredentials = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/tfs/credentials/status`, {
+        const res = await fetch(`${apiUrl}/api/tfs/credentials/status`, {
           headers: { Authorization: `Bearer ${user.accessToken}` },
         });
         if (res.ok) {
@@ -92,7 +93,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout, user }) => {
     setTfsSaving(true);
     setTfsSaveError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/tfs/credentials`, {
+      const res = await fetch(`${apiUrl}/api/tfs/credentials`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

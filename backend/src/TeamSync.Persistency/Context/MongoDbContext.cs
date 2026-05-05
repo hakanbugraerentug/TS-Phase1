@@ -22,4 +22,6 @@ public class MongoDbContext
     public IMongoCollection<User> Users => _database.GetCollection<User>(User.CollectionName);
     public IMongoCollection<Delegation> Delegations => _database.GetCollection<Delegation>(Delegation.CollectionName);
     public IMongoCollection<AccessToken> AccessTokens => _database.GetCollection<AccessToken>(AccessToken.CollectionName);
+    public IMongoCollection<WeeklyReport> WeeklyReports => _database.GetCollection<WeeklyReport>(WeeklyReport.CollectionName);
+    public IMongoCollection<ProjectGroup> ProjectGroups => _database.GetCollection<ProjectGroup>(ProjectGroup.CollectionName);
 }

@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
+import type { LoginPayload } from '../App';
 
 interface LoginProps {
-  onLoginSuccess: (userData: any) => void;
+  onLoginSuccess: (payload: LoginPayload) => void;
 }
 
 const TsLogo = () => (
@@ -52,7 +53,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
       const data = await response.json();
       onLoginSuccess(data);
-    } catch (err: any) {
+    } catch {
       setError('Kullanıcı bulunamadı veya giriş yapılamadı.');
     } finally {
       setIsLoading(false);

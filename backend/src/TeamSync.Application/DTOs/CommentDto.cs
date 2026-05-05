@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace TeamSync.Application.DTOs;
 
 public class CommentDto
@@ -11,7 +13,11 @@ public class CommentDto
 
 public class AddCommentRequest
 {
+    [Required]
     public string ProjectId { get; set; } = string.Empty;
+    [Required]
+    [StringLength(5000, MinimumLength = 1)]
     public string Text { get; set; } = string.Empty;
+    [Required]
     public string Author { get; set; } = string.Empty;
 }

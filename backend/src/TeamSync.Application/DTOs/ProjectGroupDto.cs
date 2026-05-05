@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace TeamSync.Application.DTOs;
 
 public class ProjectGroupDto
@@ -12,13 +14,18 @@ public class ProjectGroupDto
 
 public class CreateProjectGroupRequest
 {
+    [Required]
+    [StringLength(100, MinimumLength = 1)]
     public string Name { get; set; } = string.Empty;
     public string Color { get; set; } = "blue";
+    [Required]
     public string CreatedBy { get; set; } = string.Empty;
 }
 
 public class UpdateProjectGroupRequest
 {
+    [Required]
+    [StringLength(100, MinimumLength = 1)]
     public string Name { get; set; } = string.Empty;
     public string Color { get; set; } = "blue";
     public List<string> ProjectIds { get; set; } = new();

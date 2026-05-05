@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_timeout_seconds: int = 120
 
+    # Thinking model support
+    # Set to True if the model supports extended thinking (Qwen3, Kimi-K2, etc.)
+    llm_enable_thinking: bool = False
+    # Token budget for thinking. Ignored when llm_enable_thinking=False.
+    llm_thinking_budget: int = 8192
+
     # Pipeline
     max_repair_attempts: int = 2
 
@@ -21,9 +27,7 @@ class Settings(BaseSettings):
     # Meeting recording pipeline
     hf_token: str = ""
     openai_api_key: str = ""
-    # Set to None to let pyannote auto-detect the number of speakers
     meeting_num_speakers: Optional[int] = None
-    # Meeting models
     whisper_local_model_dir: str = ""
     pyannote_diarization_config: str = ""
     temp_dir: str = "/tmp/meetings"
@@ -35,17 +39,11 @@ class Settings(BaseSettings):
     mongodb_db: str = "TeamSyncDb"
 
     # ── TFS / Azure DevOps Server ────────────────────────
-    # Örnek: https://tfs02.sirket.com.tr/tfs
     tfs_base_url: str = "https://tfs02.yapikredi.com.tr/tfs"
-    # TFS Collection adı
     tfs_collection: str = "HBTUYTMCollection"
-    # TFS Proje adı
     tfs_project: str = "TeamSync"
-    # Personal Access Token
     tfs_pat: str = ""
-    # HTTP istek zaman aşımı (saniye)
     tfs_timeout_seconds: int = 30
-
 
     model_config = {
         "env_file": ".env",

@@ -11,7 +11,7 @@ public class WeeklyReportRepository : IWeeklyReportRepository
 
     public WeeklyReportRepository(MongoDbContext context)
     {
-        _collection = context.Database.GetCollection<WeeklyReport>(WeeklyReport.CollectionName);
+        _collection = context.WeeklyReports;
     }
 
     public async Task<WeeklyReport?> GetByUsernameAndWeekAsync(string username, string weekStart)

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User } from '../App';
-
-const API_BASE = 'http://localhost:8000';
+import { getApiUrl } from '../utils/api';
 
 interface TfsCommit {
   commitId: string;
@@ -101,6 +100,7 @@ export const TfsPage: React.FC<TfsPageProps> = ({ user }) => {
   const [errorCompleted, setErrorCompleted] = useState<string | null>(null);
   const [errorActive, setErrorActive] = useState<string | null>(null);
 
+  const apiUrl = getApiUrl();
   const headers = { Authorization: `Bearer ${user.accessToken}` };
 
   const fetchAll = useCallback(async () => {
@@ -113,9 +113,9 @@ export const TfsPage: React.FC<TfsPageProps> = ({ user }) => {
 
     // Fetch all three in parallel
     const [commitsRes, completedRes, activeRes] = await Promise.allSettled([
-      fetch(`${API_BASE}/api/tfs/commits`, { headers }),
-      fetch(`${API_BASE}/api/tfs/workitems/completed`, { headers }),
-      fetch(`${API_BASE}/api/tfs/workitems/active`, { headers }),
+      fetch(`${apiUrl}/api/tfs/commits`, { headers }),
+      fetch(`${apiUrl}/api/tfs/workitems/completed`, { headers }),
+      fetch(`${apiUrl}/api/tfs/workitems/active`, { headers }),
     ]);
 
     if (commitsRes.status === 'fulfilled') {
