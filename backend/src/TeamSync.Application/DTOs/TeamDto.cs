@@ -9,7 +9,7 @@ public class TeamDto
     public string Description { get; set; } = string.Empty;
     public string Leader { get; set; } = string.Empty;
     public List<string> Members { get; set; } = new();
-    public string ProjectId { get; set; } = string.Empty;
+    public string? ProjectId { get; set; }
 }
 
 public class CreateTeamRequest
@@ -20,8 +20,7 @@ public class CreateTeamRequest
     public string Description { get; set; } = string.Empty;
     public string Leader { get; set; } = string.Empty;
     public List<string> Members { get; set; } = new();
-    [Required]
-    public string ProjectId { get; set; } = string.Empty;
+    public string? ProjectId { get; set; }
 }
 
 public class SetLeaderRequest
