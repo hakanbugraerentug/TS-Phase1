@@ -596,48 +596,154 @@ export const WeeklySummary: React.FC<{ user: User }> = ({ user }) => {
     try {
       const weekStart = getWeekStart();
       const h = { Authorization: `Bearer ${user.accessToken}` };
-
+ 
+      // ── 1. Reviewer raporlarından bullet'lar (müdür/direktör dışı için) ──
       let reviewerAiComments: AiReportComment[] = [];
-      try {
-        const rRes = await fetch(`${apiUrl}/api/weekly-reports/all-for-reviewer?weekStart=${weekStart}`, { headers: h });
-        if (rRes.ok) {
-          const reports: { id: string; username: string; weekStart: string; author: string; reportData?: { bullet_lines?: BulletLine[] } | null }[] = await rRes.json();
-          for (const rep of reports) {
-            if (!rep.reportData?.bullet_lines) continue;
-            let cur = rep.author || rep.username;
-            rep.reportData.bullet_lines.forEach((line, li) => {
-              if (line.bullet0) cur = line.bullet0.replace(/^\[|\]$/g, '');
-              [...(line.bullet1 ?? []), ...(line.bullet2 ?? []), ...(line.bullet3 ?? [])].forEach((txt, bi) => {
-                if (!txt.trim()) return;
-                reviewerAiComments.push({ commentId: `rv-${rep.id}-${li}-${bi}`, date: rep.weekStart, username: rep.author || rep.username, projectName: cur, userComment: txt });
+      if (userRole === 'personel' || userRole === 'ekip_lideri') {
+        try {
+          const rRes = await fetch(
+            `${apiUrl}/api/weekly-reports/all-for-reviewer?weekStart=${weekStart}`,
+            { headers: h }
+          );
+          if (rRes.ok) {
+            const reports: {
+              id: string;
+              username: string;
+              weekStart: string;
+              author: string;
+              reportData?: { bullet_lines?: BulletLine[] } | null;
+            }[] = await rRes.json();
+ 
+            for (const rep of reports) {
+              if (!rep.reportData?.bullet_lines) continue;
+              let cur = rep.author || rep.username;
+              rep.reportData.bullet_lines.forEach((line, li) => {
+                if (line.bullet0) cur = line.bullet0.replace(/^\[|\]$/g, '');
+                [...(line.bullet1 ?? []), ...(line.bullet2 ?? []), ...(line.bullet3 ?? [])].forEach(
+                  (txt, bi) => {
+                    if (!txt.trim()) return;
+                    reviewerAiComments.push({
+                      commentId: `rv-${rep.id}-${li}-${bi}`,
+                      date: rep.weekStart,
+                      username: rep.author || rep.username,
+                      projectName: cur,
+                      userComment: txt,
+                    });
+                  }
+                );
               });
+            }
+          }
+        } catch (e) {
+          console.warn('Reviewer raporları alınamadı:', e);
+        }
+      }
+ 
+      // ── 2. Proje yorumları ────────────────────────────────────────────────
+      const myComments: AiReportComment[] = [];
+ 
+      if (userRole === 'personel' || userRole === 'ekip_lideri') {
+        // Personel & Ekip Lideri: tarih filtreli endpoint'ten taze çek
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        sevenDaysAgo.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+ 
+        try {
+          const [freshCommentsRes, freshProjectsRes, freshTeamsRes] = await Promise.all([
+            fetch(
+              `${apiUrl}/api/comments/by-date?startDate=${sevenDaysAgo.toISOString()}&endDate=${todayEnd.toISOString()}`,
+              { headers: h }
+            ),
+            fetch(`${apiUrl}/api/projects`, { headers: h }),
+            fetch(`${apiUrl}/api/teams/my-teams`, { headers: h }),
+          ]);
+ 
+          const freshComments: CommentData[] = freshCommentsRes.ok
+            ? await freshCommentsRes.json()
+            : [];
+          const freshProjects: ProjectData[] = freshProjectsRes.ok
+            ? await freshProjectsRes.json()
+            : [];
+          const myTeams: TeamData[] = freshTeamsRes.ok ? await freshTeamsRes.json() : [];
+ 
+          // Kullanıcının bağlı olduğu proje ID'leri:
+          // doğrudan member/owner + ilgiliEkipIdleri üzerinden atanmış ekip
+          const myTeamIds = new Set(myTeams.map(t => t.id));
+          const relevantIds = buildRelevantProjectIds(
+            user.username,
+            freshProjects,
+            myTeams,
+            userRole
+          );
+ 
+          // Ekip lideriyse ekip üyelerinin yorumlarını da al, personelse sadece kendi yorumları
+          for (const c of freshComments) {
+            if (!relevantIds.has(c.projectId) || isSkippable(c.content)) continue;
+ 
+            if (userRole === 'personel' && c.username !== user.username) continue;
+ 
+            // Ekip lideri: liderlik ettiği ekiplerin member'larının yorumları
+            if (userRole === 'ekip_lideri') {
+              const ledTeams = myTeams.filter(t => t.leader === user.username);
+              const ledMemberUsernames = new Set<string>();
+              for (const t of ledTeams) {
+                t.members.forEach(m => ledMemberUsernames.add(m));
+                ledMemberUsernames.add(t.leader);
+              }
+              if (!ledMemberUsernames.has(c.username) && c.username !== user.username) continue;
+            }
+ 
+            const proj = freshProjects.find(p => p.id === c.projectId);
+            myComments.push({
+              commentId: c.id,
+              date: c.date?.substring(0, 10) ?? weekStart,
+              username: c.username,
+              projectName: proj?.title ?? c.projectId,
+              userComment: c.content,
             });
           }
+        } catch (e) {
+          console.warn('Commentler çekilirken hata oluştu:', e);
         }
-      } catch (e) { console.warn('Reviewer raporları alınamadı:', e); }
-
-      const threshold = sevenDaysAgoDate();
-      const myComments: AiReportComment[] = [];
-      for (const c of allComments) {
-        if (!relevantProjectIds.has(c.projectId) || isSkippable(c.content)) continue;
-        const d = safeParseDate(c.date);
-        if (d && d < threshold) continue;
-        if (userRole === 'mudur' && !directReportUsernames.has(c.username)) continue;
-        if (userRole === 'direktor') continue;
-        const proj = allProjects.find(p => p.id === c.projectId);
-        myComments.push({ commentId: c.id, date: c.date?.substring(0, 10) ?? weekStart, username: c.username, projectName: proj?.title ?? c.projectId, userComment: c.content });
+      } else if (userRole === 'mudur') {
+        // Müdür: allComments (zaten yüklü) içinden direct report'ların yorumları
+        const threshold = sevenDaysAgoDate();
+        for (const c of allComments) {
+          if (!relevantProjectIds.has(c.projectId) || isSkippable(c.content)) continue;
+          const d = safeParseDate(c.date);
+          if (d && d < threshold) continue;
+          if (!directReportUsernames.has(c.username)) continue;
+          const proj = allProjects.find(p => p.id === c.projectId);
+          myComments.push({
+            commentId: c.id,
+            date: c.date?.substring(0, 10) ?? weekStart,
+            username: c.username,
+            projectName: proj?.title ?? c.projectId,
+            userComment: c.content,
+          });
+        }
       }
-
+      // Direktör: sadece reviewerAiComments kullanır (müdür raporlarından)
+ 
       const aiComments = [...reviewerAiComments, ...myComments];
-      if (aiComments.length === 0) throw new Error('Hiç veri bulunamadı.');
-
+ 
+      if (aiComments.length === 0) {
+        throw new Error(
+          userRole === 'personel'
+            ? 'Son 7 günde ilgili projelerinizde yorum bulunamadı. Proje yorumu ekleyin.'
+            : 'Hiç veri bulunamadı.'
+        );
+      }
+ 
       const formatInstruction = `
 Raporu aşağıdaki BulletLine[] JSON formatında üret. Her BulletLine bir objedir:
 - Proje bir gruba AİT DEĞİLSE: { "bullet0": "[Proje Adı]", "bullet1": ["yorum1", "yorum2"], "bullet2": null, "bullet3": null }
 - Proje bir gruba AİTSE: Önce grup başlığı bloğu: { "bullet0": "[Grup Adı]", "bullet1": null, "bullet2": null, "bullet3": null }, ardından her proje için: { "bullet0": null, "bullet1": ["Proje Adı"], "bullet2": ["yorum1", "yorum2"], "bullet3": null }
 bullet3 daima null olmalı. Yorumları özetle ve grupla, tekrarları birleştir.
 ${prompt || ''}`.trim();
-
+ 
       const res = await fetch(`${aiReportUrl}/generate_report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -648,10 +754,13 @@ ${prompt || ''}`.trim();
       setReportData(data);
       setReportStatus('generated');
     } catch (err: unknown) {
-      setGenerateError(`Rapor oluşturulamadı: ${err instanceof Error ? err.message : String(err)}`);
-    } finally { setIsGenerating(false); }
+      setGenerateError(
+        `Rapor oluşturulamadı: ${err instanceof Error ? err.message : String(err)}`
+      );
+    } finally {
+      setIsGenerating(false);
+    }
   };
-
   // ── Generate: Raw (Olduğu Gibi Getir) ────────────────────────────────────
 
   /**
@@ -821,9 +930,8 @@ ${prompt || ''}`.trim();
     try {
       // reportStatus === 'manuel' → Olduğu Gibi Getir formatı → generate_docx_as_is
       // reportStatus === 'generated' veya null → AI raporu → generate_docx
-      const endpoint = reportStatus === 'manuel'
-        ? `${aiReportUrl}/generate_docx_as_is`
-        : `${aiReportUrl}/generate_docx`;
+      const endpoint = `${aiReportUrl}/generate_docx`;
+
 
       // _reporter alanını server'a göndermeden önce temizle (generate_docx için)
       // generate_docx_as_is zaten extra alanları ignore ediyor, ama yine de temiz tutalım

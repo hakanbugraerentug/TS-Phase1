@@ -1,104 +1,139 @@
 from __future__ import annotations
 
 import io
-from typing import Optional
-
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 
 from ..schemas.docx import BulletLine
 
-
-# Kurumsal renk paleti
-_COLOR_TITLE = RGBColor(0x1F, 0x39, 0x64)   # koyu lacivert
-_COLOR_GROUP = RGBColor(0x1F, 0x39, 0x64)   # grup header
-_COLOR_PROJECT = RGBColor(0x2E, 0x75, 0xB6) # proje header (mavi)
-_COLOR_BODY = RGBColor(0x00, 0x00, 0x00)    # normal metin
-
-
-def _is_group_line(bullet0: Optional[str]) -> bool:
-    """Girintisiz [Başlık] → grup satırı."""
-    return bool(bullet0 and not bullet0.startswith("  ") and not _is_project_line(bullet0))
+# ── Renk paleti ───────────────────────────────────────────────────────────────
+_COLOR_TITLE    = RGBColor(0x1F, 0x39, 0x64)
+_COLOR_HEADER   = RGBColor(0x1F, 0x39, 0x64)   # ❖ başlık
+_COLOR_PROJECT  = RGBColor(0x2E, 0x75, 0xB6)   # • proje adı (grup altında)
+_COLOR_BULLET   = RGBColor(0x00, 0x00, 0x00)   # ▪ yorum
+_COLOR_FOLLOWUP = RGBColor(0xC0, 0x6B, 0x00)   # ▪ takip
 
 
-def _is_project_line(bullet0: Optional[str]) -> bool:
-    """  [Proje] → grup altındaki proje satırı (2 boşlukla başlar)."""
-    return bool(bullet0 and bullet0.startswith("  "))
+def _tight(p) -> None:
+    pPr = p._p.get_or_add_pPr()
+    spacing = OxmlElement("w:spacing")
+    spacing.set(qn("w:before"), "40")
+    spacing.set(qn("w:after"), "40")
+    pPr.append(spacing)
+
+
+def _clean(label: str) -> str:
+    """Köşeli parantezleri koru — [Proje Adı] olarak bırak."""
+    return label.strip()
+
+
+def _add_header(doc: Document, text: str) -> None:
+    """❖ Grup veya bağımsız proje başlığı."""
+    p = doc.add_paragraph()
+    _tight(p)
+    p.paragraph_format.left_indent  = Inches(0)
+    p.paragraph_format.space_before = Pt(10)
+    run = p.add_run(f"\u2756 {text}")
+    run.bold = True
+    run.font.size = Pt(12)
+    run.font.color.rgb = _COLOR_HEADER
+
+
+def _add_project(doc: Document, text: str, indent: float) -> None:
+    """• Proje adı — grup altında."""
+    p = doc.add_paragraph()
+    _tight(p)
+    p.paragraph_format.left_indent = Inches(indent)
+    run = p.add_run(f"\u2022 {text}")
+    run.bold = True
+    run.font.size = Pt(11)
+    run.font.color.rgb = _COLOR_PROJECT
+
+
+def _add_bullet(doc: Document, text: str, indent: float, followup: bool = False) -> None:
+    """▪ Yorum / takip satırı."""
+    p = doc.add_paragraph()
+    _tight(p)
+    p.paragraph_format.left_indent = Inches(indent)
+    label = f"[Takip] {text}" if followup else text
+    run = p.add_run(f"\u25aa {label}")
+    run.font.size = Pt(10)
+    run.font.color.rgb = _COLOR_FOLLOWUP if followup else _COLOR_BULLET
 
 
 def build_docx(lines: list[BulletLine], title: str) -> bytes:
     doc = Document()
 
-    # ── Sayfa kenar boşlukları ────────────────────────────────────────────────
     for section in doc.sections:
-        section.top_margin = Inches(1)
+        section.top_margin    = Inches(1)
         section.bottom_margin = Inches(1)
-        section.left_margin = Inches(1.25)
-        section.right_margin = Inches(1.25)
+        section.left_margin   = Inches(1.25)
+        section.right_margin  = Inches(1.25)
 
-    # ── Başlık ────────────────────────────────────────────────────────────────
+    # Belge başlığı
     title_para = doc.add_paragraph()
     title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = title_para.add_run(title)
     run.bold = True
     run.font.size = Pt(16)
     run.font.color.rgb = _COLOR_TITLE
-    doc.add_paragraph()  # boşluk
+    doc.add_paragraph()
 
-    # ── Bullet satırları ──────────────────────────────────────────────────────
+    inside_group = False
+
     for line in lines:
-        b0 = line.bullet0 or ""
-        label = b0.strip()  # girintisiz hali
+        b0    = line.bullet0
+        label = b0.strip() if b0 else ""
 
+        # DURUM 1: bullet0 var, bullet1+bullet2 yok → saf grup başlığı
+        # { bullet0: "[Grup]", bullet1: null, bullet2: null }
+        if label and not line.bullet1 and not line.bullet2:
+            inside_group = True
+            _add_header(doc, _clean(label))
+            continue
+
+        # DURUM 2: bullet0 var, bullet1 var, bullet2 yok
+        # → bağımsız proje: ❖[Proje] + ▪ bullet1 yorumları
+        if label and line.bullet1 and not line.bullet2:
+            inside_group = False
+            _add_header(doc, _clean(label))
+            for item in line.bullet1:
+                _add_bullet(doc, item, indent=0.35)
+            for item in (line.bullet3 or []):
+                _add_bullet(doc, item, indent=0.35, followup=True)
+            continue
+
+        # DURUM 3: bullet0 var, bullet2 de var
+        # → bağımsız proje: ❖[Proje] + ▪ bullet2 yorumları
+        if label and line.bullet2:
+            inside_group = False
+            _add_header(doc, _clean(label))
+            for item in line.bullet2:
+                _add_bullet(doc, item, indent=0.35)
+            for item in (line.bullet3 or []):
+                _add_bullet(doc, item, indent=0.35, followup=True)
+            continue
+
+        # DURUM 4: bullet0 = None → grup içindeki proje satırı
+        # { bullet0: null, bullet1: ["Proje Adı"], bullet2: ["yorum1", ...] }
         if not label:
-            continue
+            proj_indent   = 0.30
+            bullet_indent = 0.65
 
-        # Grup header (büyük başlık, koyu lacivert, alt çizgili)
-        if _is_group_line(b0) and not line.bullet2 and not line.bullet3:
-            p = doc.add_paragraph()
-            run = p.add_run(label)
-            run.bold = True
-            run.underline = True
-            run.font.size = Pt(12)
-            run.font.color.rgb = _COLOR_GROUP
-            continue
+            if line.bullet1:
+                proj_name = line.bullet1[0] if isinstance(line.bullet1, list) else str(line.bullet1)
+                _add_project(doc, proj_name, indent=proj_indent)
+                for item in (line.bullet1[1:] if isinstance(line.bullet1, list) else []):
+                    _add_bullet(doc, item, indent=bullet_indent)
 
-        # Proje header — grup altındaysa girintili, değilse normal
-        is_nested = _is_project_line(b0)
-        p = doc.add_paragraph()
-        p.paragraph_format.left_indent = Inches(0.3) if is_nested else Inches(0)
-        run = p.add_run(label)
-        run.bold = True
-        run.font.size = Pt(11)
-        run.font.color.rgb = _COLOR_PROJECT
+            for item in (line.bullet2 or []):
+                _add_bullet(doc, item, indent=bullet_indent)
 
-        base_indent = Inches(0.6) if is_nested else Inches(0.3)
-
-        # bullet1 — kategori (italic, gri)
-        for item in (line.bullet1 or []):
-            p = doc.add_paragraph(style="List Bullet")
-            p.paragraph_format.left_indent = base_indent
-            run = p.add_run(item)
-            run.italic = True
-            run.font.size = Pt(10)
-            run.font.color.rgb = RGBColor(0x59, 0x56, 0x59)
-
-        # bullet2 — yapılan işler
-        for item in (line.bullet2 or []):
-            p = doc.add_paragraph(style="List Bullet")
-            p.paragraph_format.left_indent = base_indent + Inches(0.2)
-            run = p.add_run(item)
-            run.font.size = Pt(10)
-            run.font.color.rgb = _COLOR_BODY
-
-        # bullet3 — takip maddeleri (koyu sarı-turuncu ile)
-        for item in (line.bullet3 or []):
-            p = doc.add_paragraph(style="List Bullet")
-            p.paragraph_format.left_indent = base_indent + Inches(0.2)
-            run = p.add_run(f"[Takip] {item}")
-            run.font.size = Pt(10)
-            run.font.color.rgb = RGBColor(0xC0, 0x6B, 0x00)
+            for item in (line.bullet3 or []):
+                _add_bullet(doc, item, indent=bullet_indent, followup=True)
 
     buf = io.BytesIO()
     doc.save(buf)
